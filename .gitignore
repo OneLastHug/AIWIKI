@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.env
+.DS_Store
+data/tmp/*
+!data/tmp/.gitkeep
+data/repos/*
+!data/repos/.gitkeep
+data/service.sqlite3
+data/service.sqlite3-*
