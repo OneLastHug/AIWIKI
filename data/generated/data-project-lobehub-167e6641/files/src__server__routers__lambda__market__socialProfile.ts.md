@@ -19,7 +19,7 @@ export type SocialProfileRouter = typeof socialProfileRouter;
 ## 主要对外内容
 ```text
 const log = debug('lambda-router:market:socialProfile');
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
+const MARKET_BASE_URL = process.env.MARKET_BASE_URL || '[URL已移除]';
 const socialProfileAuthProcedure = authedProcedure
 export interface ClaimableResource {
 export interface ClaimableResources {
@@ -43,7 +43,7 @@ import { marketSDK, marketUserInfo, serverDatabase } from '@/libs/trpc/lambda/mi
 
 const log = debug('lambda-router:market:socialProfile');
 
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
+const MARKET_BASE_URL = process.env.MARKET_BASE_URL || '[URL已移除]';
 
 // Authenticated procedure for social profile operations
 const socialProfileAuthProcedure = authedProcedure

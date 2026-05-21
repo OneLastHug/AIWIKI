@@ -17,6 +17,7 @@ from _common import (
     atomic_write_text,
     connect_state,
     emit_signal,
+    ensure_run,
     find_codex_bin,
     init_state_db,
     render_progress_json_from_db,
@@ -24,6 +25,7 @@ from _common import (
     set_stage_status,
     strip_codex_output,
     task_counts,
+    update_run_status,
     validate_markdown,
 )
 
@@ -448,6 +450,7 @@ def main() -> int:
     repo = args.repo.resolve()
     out = args.out.resolve()
     init_state_db(out)
+    ensure_run(out, args.run_id, repo, timeout_seconds=args.timeout)
     set_stage_status(out, args.run_id, "C", "running", message="Stage C parallel pool running")
     emit_signal(
         out,
@@ -462,14 +465,26 @@ def main() -> int:
         if code == 130:
             set_stage_status(out, args.run_id, "C", "failed", message="Stage C interrupted", payload=payload)
             emit_signal(out, args.run_id, "STAGE_FAILED", {**payload, "error": "interrupted"})
+            update_run_status(out, args.run_id, "failed", "Stage C interrupted")
+            render_progress_json_from_db(out, args.run_id)
             return 130
         set_stage_status(out, args.run_id, "C", "completed", message="Stage C completed", payload=payload)
         emit_signal(out, args.run_id, "STAGE_COMPLETED", payload)
+        failed = counts.get("failed", 0)
+        update_run_status(
+            out,
+            args.run_id,
+            "partial" if failed else "completed",
+            "Stage C completed with failed tasks" if failed else "Stage C completed",
+        )
+        render_progress_json_from_db(out, args.run_id)
         return 0
     except Exception as exc:
         payload = {"stage": "C", "error": str(exc)}
         set_stage_status(out, args.run_id, "C", "failed", message=str(exc), payload=payload)
         emit_signal(out, args.run_id, "STAGE_FAILED", payload)
+        update_run_status(out, args.run_id, "failed", str(exc))
+        render_progress_json_from_db(out, args.run_id)
         return 1
 
 

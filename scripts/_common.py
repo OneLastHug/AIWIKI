@@ -210,6 +210,43 @@ def create_run(
     render_progress_json_from_db(out, run_id)
 
 
+def ensure_run(
+    out: Path,
+    run_id: str,
+    repo: Path | None = None,
+    *,
+    model: str = MODEL,
+    reasoning: str = TASK_REASONING,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+) -> None:
+    init_state_db(out)
+    ts = utc_ts()
+    repo_text = str(repo) if repo is not None else ""
+    with connect_state(out) as con:
+        row = con.execute("SELECT run_id FROM pipeline_runs WHERE run_id=?", (run_id,)).fetchone()
+        if row:
+            con.execute(
+                """UPDATE pipeline_runs
+                   SET repo=COALESCE(NULLIF(?, ''), repo),
+                       out=?,
+                       model=?,
+                       reasoning=?,
+                       timeout_seconds=?,
+                       updated_at=?
+                   WHERE run_id=?""",
+                (repo_text, str(out), model, reasoning, timeout_seconds, ts, run_id),
+            )
+        else:
+            con.execute(
+                """INSERT INTO pipeline_runs(
+                    run_id, repo, out, status, model, reasoning, timeout_seconds,
+                    started_at, updated_at, completed_at, message
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                (run_id, repo_text, str(out), "running", model, reasoning, timeout_seconds, ts, ts, None, ""),
+            )
+    render_progress_json_from_db(out, run_id)
+
+
 def update_run_status(out: Path, run_id: str, status: str, message: str = "") -> None:
     ts = utc_ts()
     completed = ts if status in {"completed", "partial", "failed"} else None

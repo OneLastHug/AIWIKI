@@ -10,7 +10,7 @@ python3 server.py
 默认监听：
 
 ```text
-http://127.0.0.1:18081
+[URL已移除]
 ```
 
 默认数据目录是：
@@ -134,7 +134,7 @@ run_id, stage, active_workers, task_breakdown
 通过 HTTP 查看事件：
 
 ```bash
-curl 'http://127.0.0.1:18081/repos/<repo_id>/signals?since=0'
+curl '[URL已移除]>/signals?since=0'
 ```
 
 返回格式：

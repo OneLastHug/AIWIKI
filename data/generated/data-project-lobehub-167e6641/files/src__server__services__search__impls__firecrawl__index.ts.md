@@ -60,7 +60,7 @@ export class FirecrawlImpl implements SearchServiceImpl {
 
   private get baseUrl(): string {
     // Assuming the base URL is consistent with the crawl endpoint
-    return process.env.FIRECRAWL_URL || 'https://api.firecrawl.dev/v2';
+    return process.env.FIRECRAWL_URL || '[URL已移除]';
   }
 
   async query(query: string, params: SearchParams = {}): Promise<UniformSearchResponse> {

@@ -157,7 +157,7 @@ const emailService = new EmailService(EmailImplType.Nodemailer);
 
 ### Testing with Ethereal
 
-For development and testing, use [Ethereal Email](https://ethereal.email/):
+For development and testing, use [Ethereal Email]([URL已移除]):
 
 ```typescript
 // The preview URL will be logged automatically in development

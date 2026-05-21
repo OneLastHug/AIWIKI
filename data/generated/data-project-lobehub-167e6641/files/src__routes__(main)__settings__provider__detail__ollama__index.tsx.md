@@ -43,7 +43,7 @@ const Page = () => {
         ...OllamaProviderCard.settings,
         proxyUrl: {
           desc: t('ollama.endpoint.desc'),
-          placeholder: 'http://127.0.0.1:11434',
+          placeholder: '[URL已移除]',
           title: t('ollama.endpoint.title'),
         },
       }}

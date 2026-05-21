@@ -21,7 +21,7 @@ export class MarketService {
 ## 主要对外内容
 ```text
 const log = debug('lobe-server:market-service');
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
+const MARKET_BASE_URL = process.env.MARKET_BASE_URL || '[URL已移除]';
 export function extractAccessToken(req: NextRequest): string | undefined {
 export interface LobehubSkillExecuteParams {
 export interface LobehubSkillExecuteResult {
@@ -46,7 +46,7 @@ import { generateTrustedClientToken, getTrustedClientTokenForSession } from '@/l
 
 const log = debug('lobe-server:market-service');
 
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
+const MARKET_BASE_URL = process.env.MARKET_BASE_URL || '[URL已移除]';
 
 // ============================== Helper Functions ==============================
 

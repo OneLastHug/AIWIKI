@@ -20,7 +20,7 @@ export const agentRouter = router({
 
 ## 主要对外内容
 ```text
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
+const MARKET_BASE_URL = process.env.MARKET_BASE_URL || '[URL已移除]';
 interface MarketUserInfo {
 const log = debug('lambda-router:market:agent');
 const generateMarketIdentifier = () => {
@@ -57,7 +57,7 @@ import { generateTrustedClientToken } from '@/libs/trusted-client';
 import { normalizeLocale } from '@/locales/resources';
 import type { AgentForkBatchResult, AgentForkResponse } from '@/types/discover';
 
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
+const MARKET_BASE_URL = process.env.MARKET_BASE_URL || '[URL已移除]';
 
 interface MarketUserInfo {
   accountId: number;

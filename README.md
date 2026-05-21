@@ -12,13 +12,13 @@ python3 server.py
 默认监听：
 
 ```text
-http://127.0.0.1:18081
+[URL已移除]
 ```
 
 Cloudflare Tunnel Public Hostname 的 origin 填：
 
 ```text
-http://localhost:18081
+[URL已移除]
 ```
 
 ## 功能
@@ -47,7 +47,7 @@ data/generated/<repo_id>/
 
 ## 安全限制
 
-- 不接受任意域名 git URL，只接受 `https://github.com/...` 和 `https://gitlab.com/...`。
+- 不接受任意域名 git URL，只接受 `[URL已移除] 和 `[URL已移除]
 - 本地路径限制在 `/data/project`。
 - 跳过 `.git,node_modules,dist,build,target,.next,coverage,.venv,__pycache__`。
 - 跳过 `.env,id_rsa,*.pem,*.key` 等敏感文件。

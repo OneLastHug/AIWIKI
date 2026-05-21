@@ -51,7 +51,7 @@ const handleYourAction = (value: string) => {
 
 The CommandMenu is a powerful command palette feature inspired by tools like Raycast and VS Code's Command Palette. It provides a unified, keyboard-driven interface for quick navigation, searching, and actions across the entire application.
 
-**Key Library**: Built on top of [`cmdk`](https://github.com/pacocoursey/cmdk) (Command K) by Paco Coursey.
+**Key Library**: Built on top of [`cmdk`]([URL已移除]) (Command K) by Paco Coursey.
 
 ## Architecture
 
@@ -616,7 +616,7 @@ Search is handled server-side via tRPC. To modify:
 
 ```typescript
 <Command.Item
-  onSelect={() => onExternalLink('https://example.com')}
+  onSelect={() => onExternalLink('[URL已移除]')}
 >
   External Link
 </Command.Item>
@@ -689,8 +689,8 @@ Potential areas for enhancement:
 - `lucide-react` - Icons
 
 **Related Documentation**:
-- [cmdk docs](https://cmdk.paco.me/)
-- [Zustand docs](https://zustand-demo.pmnd.rs/)
-- [SWR docs](https://swr.vercel.app/)
+- [cmdk docs]([URL已移除])
+- [Zustand docs]([URL已移除])
+- [SWR docs]([URL已移除])
 
 ```

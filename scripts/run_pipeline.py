@@ -15,6 +15,7 @@ from _common import (
     clear_terminal_state,
     create_run,
     emit_signal,
+    render_progress_json_from_db,
     set_stage_status,
     stage_failed,
     task_counts,
@@ -40,6 +41,7 @@ def finalize(out: Path, run_id: str, status: str, message: str, payload: dict) -
         "failed": "PIPELINE_FAILED",
     }.get(status, "PIPELINE_FAILED")
     emit_signal(out, run_id, signal_type, {"status": status, "message": message, **payload})
+    render_progress_json_from_db(out, run_id)
     return 0 if status in {"completed", "partial"} else 1
 
 

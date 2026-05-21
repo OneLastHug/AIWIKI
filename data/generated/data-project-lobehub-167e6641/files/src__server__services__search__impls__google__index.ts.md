@@ -64,7 +64,7 @@ export class GoogleImpl implements SearchServiceImpl {
 
   private get baseUrl(): string {
     // Assuming the base URL is consistent with the crawl endpoint
-    return 'https://www.googleapis.com';
+    return '[URL已移除]';
   }
 
   async query(query: string, params: SearchParams = {}): Promise<UniformSearchResponse> {

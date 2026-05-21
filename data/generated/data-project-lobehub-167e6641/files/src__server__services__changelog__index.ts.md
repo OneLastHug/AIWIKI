@@ -20,7 +20,7 @@ export class ChangelogService {
 
 ## 主要对外内容
 ```text
-const URL_TEMPLATE = 'https://raw.githubusercontent.com/{{user}}/{{repo}}/{{branch}}/{{path}}';
+const URL_TEMPLATE = '[URL已移除]}}/{{repo}}/{{branch}}/{{path}}';
 const LAST_MODIFIED = new Date().toISOString();
 const docCdnPrefix = process.env.DOC_S3_PUBLIC_DOMAIN || '';
 export interface ChangelogConfig {
@@ -45,7 +45,7 @@ import { type Locales } from '@/locales/resources';
 import { type ChangelogIndexItem } from '@/types/changelog';
 import { markdownToTxt } from '@/utils/markdownToTxt';
 
-const URL_TEMPLATE = 'https://raw.githubusercontent.com/{{user}}/{{repo}}/{{branch}}/{{path}}';
+const URL_TEMPLATE = '[URL已移除]}}/{{repo}}/{{branch}}/{{path}}';
 const LAST_MODIFIED = new Date().toISOString();
 
 const docCdnPrefix = process.env.DOC_S3_PUBLIC_DOMAIN || '';
@@ -252,7 +252,7 @@ export class ChangelogService {
   }
 
   private replaceCdnUrl(url: string) {
-    if (url?.startsWith('/blog')) return urlJoin('https://hub-apac-1.lobeobjects.space/', url);
+    if (url?.startsWith('/blog')) return urlJoin('[URL已移除]', url);
     return url;
   }
 }

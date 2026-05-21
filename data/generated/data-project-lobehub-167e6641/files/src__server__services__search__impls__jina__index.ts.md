@@ -52,7 +52,7 @@ export class JinaImpl implements SearchServiceImpl {
 
   private get baseUrl(): string {
     // Assuming the base URL is consistent with the crawl endpoint
-    return 'https://s.jina.ai';
+    return '[URL已移除]';
   }
 
   async query(query: string, params: SearchParams = {}): Promise<UniformSearchResponse> {

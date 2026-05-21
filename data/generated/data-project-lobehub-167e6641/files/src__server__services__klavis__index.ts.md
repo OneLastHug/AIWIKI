@@ -243,7 +243,7 @@ export class KlavisService {
           return {
             api: plugin.manifest.api || [],
             author: 'Klavis',
-            homepage: 'https://klavis.ai',
+            homepage: '[URL已移除]',
             identifier: plugin.identifier,
             meta: plugin.manifest.meta || {
               avatar: '☁️',

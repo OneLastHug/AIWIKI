@@ -180,7 +180,7 @@ export const messengerRouter = router({
           : def.id === 'discord'
             ? discordConfig?.applicationId
             : undefined,
-      // Telegram-only: deep-link target (`https://t.me/<botUsername>`) — no
+      // Telegram-only: deep-link target (`[URL已移除]>`) — no
       // direct equivalent on Slack/Discord, both of which use App/Application
       // IDs to deep-link to the bot.
       botUsername: def.id === 'telegram' ? telegramConfig?.botUsername : undefined,

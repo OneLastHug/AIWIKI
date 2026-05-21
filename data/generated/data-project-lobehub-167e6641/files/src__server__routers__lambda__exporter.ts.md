@@ -59,7 +59,7 @@ const exportProcedure = authedProcedure.use(serverDatabase).use(async (opts) => 
 });
 
 const REGULAR_FONT_URL =
-  'https://cdn.jsdelivr.net/gh/adobe-fonts/source-han-sans@2.004R/OTF/SimplifiedChinese/SourceHanSansSC-Regular.otf';
+  '[URL已移除]';
 
 let regularFontCache: Buffer | null = null;
 

@@ -60,7 +60,7 @@ export class BraveImpl implements SearchServiceImpl {
 
   private get baseUrl(): string {
     // Assuming the base URL is consistent with the crawl endpoint
-    return 'https://api.search.brave.com/res/v1';
+    return '[URL已移除]';
   }
 
   async query(query: string, params: SearchParams = {}): Promise<UniformSearchResponse> {

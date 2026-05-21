@@ -17,10 +17,12 @@ from _common import (
     atomic_write_text,
     connect_state,
     emit_signal,
+    ensure_run,
     init_state_db,
     normalize_rel_path,
     output_md_for,
     rel_key_for,
+    render_progress_json_from_db,
     set_stage_status,
 )
 
@@ -290,13 +292,14 @@ def parent_dirs(rel_path: str) -> list[str]:
 def choose_tasks(repo: Path, out: Path, max_tasks: int) -> tuple[list[Task], int]:
     critical_dirs, critical_files = load_critical(out)
     selected: dict[str, Task] = {}
-    dropped = 0
+    all_candidates: set[str] = set()
+    max_tasks = max(0, max_tasks)
 
     def select_bundle(bundle: list[Task]) -> bool:
-        nonlocal dropped
+        for task in bundle:
+            all_candidates.add(task.rel_key)
         needed = [t for t in bundle if t.rel_key not in selected]
         if len(selected) + len(needed) > max_tasks:
-            dropped += len(needed)
             return False
         for task in needed:
             selected[task.rel_key] = task
@@ -344,6 +347,7 @@ def choose_tasks(repo: Path, out: Path, max_tasks: int) -> tuple[list[Task], int
             continue
 
     tasks = sorted(selected.values(), key=lambda t: (t.priority, 0 if t.kind == "directory" else 1, t.rel_path))
+    dropped = len(all_candidates - set(selected))
     return tasks, dropped
 
 
@@ -429,6 +433,7 @@ def main() -> int:
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     init_state_db(out)
+    ensure_run(out, args.run_id, repo)
     set_stage_status(out, args.run_id, "B", "running", message="Stage B task table running")
     emit_signal(out, args.run_id, "STAGE_STARTED", {"stage": "B", "repo": str(repo), "out": str(out)})
 
@@ -446,11 +451,13 @@ def main() -> int:
         }
         set_stage_status(out, args.run_id, "B", "completed", message="Stage B task table completed", payload=payload)
         emit_signal(out, args.run_id, "STAGE_COMPLETED", payload)
+        render_progress_json_from_db(out, args.run_id)
         return 0
     except Exception as exc:
         payload = {"stage": "B", "error": str(exc)}
         set_stage_status(out, args.run_id, "B", "failed", message=str(exc), payload=payload)
         emit_signal(out, args.run_id, "STAGE_FAILED", payload)
+        render_progress_json_from_db(out, args.run_id)
         return 1
 
 

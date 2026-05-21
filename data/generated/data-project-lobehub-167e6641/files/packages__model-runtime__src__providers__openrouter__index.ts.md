@@ -41,7 +41,7 @@ const formatPrice = (price?: string) => {
 };
 
 export const params = {
-  baseURL: 'https://openrouter.ai/api/v1',
+  baseURL: '[URL已移除]',
   chatCompletion: {
     handlePayload: (payload) => {
       const {
@@ -113,7 +113,7 @@ export const params = {
   },
   constructorOptions: {
     defaultHeaders: {
-      'HTTP-Referer': 'https://lobehub.com',
+      'HTTP-Referer': '[URL已移除]',
       'X-Title': 'LobeHub',
     },
   },
@@ -124,7 +124,7 @@ export const params = {
     let modelList: OpenRouterModelCard[] = [];
 
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/models');
+      const response = await fetch('[URL已移除]');
       if (response.ok) {
         const data = await response.json();
         modelList = data['data'];

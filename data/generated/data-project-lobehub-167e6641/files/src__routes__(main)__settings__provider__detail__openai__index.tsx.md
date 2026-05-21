@@ -37,7 +37,7 @@ const Page = () => {
       settings={{
         ...OpenAIProviderCard.settings,
         proxyUrl: showOpenAIProxyUrl && {
-          placeholder: 'https://api.openai.com/v1',
+          placeholder: '[URL已移除]',
         },
         showApiKey: showOpenAIApiKey,
       }}

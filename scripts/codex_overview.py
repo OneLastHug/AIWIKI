@@ -13,7 +13,9 @@ from _common import (
     OVERVIEW_REASONING,
     atomic_write_text,
     emit_signal,
+    ensure_run,
     init_state_db,
+    render_progress_json_from_db,
     run_codex_exec,
     set_stage_status,
     strip_codex_output,
@@ -138,6 +140,7 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     debug.mkdir(parents=True, exist_ok=True)
     init_state_db(out)
+    ensure_run(out, args.run_id, repo, reasoning=OVERVIEW_REASONING, timeout_seconds=args.timeout)
     set_stage_status(out, args.run_id, "A", "running", message="Stage A overview running")
     emit_signal(out, args.run_id, "STAGE_STARTED", {"stage": "A", "repo": str(repo), "out": str(out)})
 
@@ -164,11 +167,13 @@ def main() -> int:
             raise RuntimeError(reason)
         set_stage_status(out, args.run_id, "A", "completed", message="Stage A overview completed", payload=payload)
         emit_signal(out, args.run_id, "STAGE_COMPLETED", {"stage": "A", **payload})
+        render_progress_json_from_db(out, args.run_id)
         return 0
     except Exception as exc:
         payload = {"stage": "A", "error": str(exc)}
         set_stage_status(out, args.run_id, "A", "failed", message=str(exc), payload=payload)
         emit_signal(out, args.run_id, "STAGE_FAILED", payload)
+        render_progress_json_from_db(out, args.run_id)
         return 1
 
 

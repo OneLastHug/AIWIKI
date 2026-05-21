@@ -628,7 +628,7 @@ export class DiscoverService {
         forkedFromAgentId: (data as any).forkedFromAgentId,
         homepage:
           (data as any).homepage ||
-          `https://lobehub.com/discover/assistant/${(data as any).identifier}`,
+          `[URL已移除] as any).identifier}`,
         identifier: (data as any).identifier,
         isValidated: (data as any).isValidated,
         knowledgeCount:

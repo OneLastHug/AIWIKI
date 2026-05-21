@@ -18,7 +18,7 @@ export const agentGroupRouter = router({
 
 ## 主要对外内容
 ```text
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
+const MARKET_BASE_URL = process.env.MARKET_BASE_URL || '[URL已移除]';
 interface MarketUserInfo {
 const log = debug('lambda-router:market:agent-group');
 const generateMarketIdentifier = () => {
@@ -47,7 +47,7 @@ import { marketSDK, marketUserInfo, serverDatabase } from '@/libs/trpc/lambda/mi
 import { type TrustedClientUserInfo } from '@/libs/trusted-client';
 import { generateTrustedClientToken } from '@/libs/trusted-client';
 
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
+const MARKET_BASE_URL = process.env.MARKET_BASE_URL || '[URL已移除]';
 
 interface MarketUserInfo {
   accountId: number;
@@ -594,7 +594,7 @@ export const agentGroupRouter = router({
           category: group.category,
           createdAt: group.createdAt,
           description: group.description || '',
-          homepage: `https://lobehub.com/discover/group_agent/${group.identifier}`,
+          homepage: `[URL已移除]}`,
           identifier: group.identifier,
           installCount: group.installCount || 0,
           isFeatured: group.isFeatured || false,

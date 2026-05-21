@@ -17,7 +17,7 @@
 
 ## 关键组成
 
-`src/app` 是 Next.js App Router 区域。根文件 `src/app/layout.tsx` 输出全局 `<html>` 和 `<body>`，并挂载 `Analytics`、Vercel `SpeedInsights`。`src/app/(backend)` 下是真正的后端 HTTP 入口，例如 `api/auth/[...all]/route.ts`、`trpc/lambda/[trpc]/route.ts`、`webapi/chat/[provider]/route.ts`、`api/workflows/**/route.ts`。`src/app/[variants]/(auth)` 放登录、注册、重置密码、OAuth consent、设备码等需要 SSR/认证上下文的页面。`src/app/spa/[variants]/[[...path]]/route.ts` 是 SPA HTML 模板服务：开发环境会从 `http://localhost:9876` 读取 Vite HTML，并改写资源地址；生产环境导入构建好的 `desktopHtmlTemplate` 或 `mobileHtmlTemplate`，再注入 `window.__SERVER_CONFIG__`、SEO metadata、feature flags、analytics config。
+`src/app` 是 Next.js App Router 区域。根文件 `src/app/layout.tsx` 输出全局 `<html>` 和 `<body>`，并挂载 `Analytics`、Vercel `SpeedInsights`。`src/app/(backend)` 下是真正的后端 HTTP 入口，例如 `api/auth/[...all]/route.ts`、`trpc/lambda/[trpc]/route.ts`、`webapi/chat/[provider]/route.ts`、`api/workflows/**/route.ts`。`src/app/[variants]/(auth)` 放登录、注册、重置密码、OAuth consent、设备码等需要 SSR/认证上下文的页面。`src/app/spa/[variants]/[[...path]]/route.ts` 是 SPA HTML 模板服务：开发环境会从 `[URL已移除] 读取 Vite HTML，并改写资源地址；生产环境导入构建好的 `desktopHtmlTemplate` 或 `mobileHtmlTemplate`，再注入 `window.__SERVER_CONFIG__`、SEO metadata、feature flags、analytics config。
 
 `src/spa` 是 SPA 启动层。`entry.web.tsx`、`entry.desktop.tsx`、`entry.mobile.tsx`、`entry.popup.tsx` 都先导入 `../initialize`，再用 `createRoot` 挂载 `RouterProvider`。不同入口使用不同路由表：桌面 Web 用 `desktopRoutes`，移动端用 `mobileRoutes`，弹窗窗口用 `popupRoutes`。其中 `entry.web.tsx` 额外处理 `/_dangerous_local_dev_proxy` 的 `basename`，用于本地 Vite SPA 嵌进线上调试代理。
 

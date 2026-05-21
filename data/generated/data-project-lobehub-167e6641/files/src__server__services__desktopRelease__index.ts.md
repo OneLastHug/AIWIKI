@@ -165,7 +165,7 @@ export const getLatestDesktopReleaseFromGithub = async (options?: {
   const repo = options?.repo || 'lobe-chat';
   const token = options?.token || process.env.GITHUB_TOKEN;
 
-  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
+  const res = await fetch(`[URL已移除]}/${repo}/releases/latest`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       'Accept': 'application/vnd.github+json',
