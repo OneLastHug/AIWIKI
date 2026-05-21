@@ -1,167 +1,18 @@
 # 目录：packages/context-engine
 
-## 它可能负责什么
-这个目录包含 154 个被抽样展示的文件。请从文件命名、子目录和关键源码入手理解它在项目中的职责。
+## 它负责什么
+`packages/context-engine` 是 LobeHub 代码树中的一个功能区域。下面的说明基于真实目录结构和被选中的源码文件生成，后续 Codex 深度解释会继续补全更细的调用关系。
 
-## 文件列表节选
+## 下面有哪些子目录
+- `src`：`packages/context-engine/src` 下的子功能区，建议展开继续读。
+
+## 下面有哪些重要文件
+- 没有发现直接文件，主要内容在更深层子目录。
+
+## 文件树节选
 ```text
-packages/context-engine/vitest.config.mts
-packages/context-engine/package.json
-packages/context-engine/src/index.ts
-packages/context-engine/src/pipeline.ts
-packages/context-engine/src/types.ts
-packages/context-engine/src/tokenAccounting/index.ts
-packages/context-engine/src/tokenAccounting/types.ts
-packages/context-engine/src/tokenAccounting/__tests__/index.test.ts
-packages/context-engine/src/__tests__/pipeline.test.ts
-packages/context-engine/src/__tests__/metadata.types.test.ts
-packages/context-engine/src/providers/BotPlatformContextInjector.ts
-packages/context-engine/src/providers/LocalSystemToolSnapshotInjector.ts
-packages/context-engine/src/providers/TodoInjector.ts
-packages/context-engine/src/providers/ToolDiscoveryProvider.ts
-packages/context-engine/src/providers/SystemDateProvider.ts
-packages/context-engine/src/providers/AgentBuilderContextInjector.ts
-packages/context-engine/src/providers/SystemRoleInjector.ts
-packages/context-engine/src/providers/DiscordContextProvider.ts
-packages/context-engine/src/providers/index.ts
-packages/context-engine/src/providers/HistorySummary.ts
-packages/context-engine/src/providers/OnboardingContextInjector.ts
-packages/context-engine/src/providers/SelectedSkillInjector.ts
-packages/context-engine/src/providers/TopicReferenceContextInjector.ts
-packages/context-engine/src/providers/TaskManagerContextInjector.ts
-packages/context-engine/src/providers/GroupAgentBuilderContextInjector.ts
-packages/context-engine/src/providers/UserMemoryInjector.ts
-packages/context-engine/src/providers/SelectedToolInjector.ts
-packages/context-engine/src/providers/GroupContextInjector.ts
-packages/context-engine/src/providers/OnboardingSyntheticStateInjector.ts
-packages/context-engine/src/providers/PageSelectionsInjector.ts
-packages/context-engine/src/providers/OnboardingActionHintInjector.ts
-packages/context-engine/src/providers/EvalContextSystemInjector.ts
-packages/context-engine/src/providers/KnowledgeInjector.ts
-packages/context-engine/src/providers/SkillContextProvider.ts
-packages/context-engine/src/providers/ActiveTopicDocumentContextInjector.ts
-packages/context-engine/src/providers/PageEditorContextInjector.ts
-packages/context-engine/src/providers/AgentManagementContextInjector.ts
-packages/context-engine/src/providers/ForceFinishSummaryInjector.ts
-packages/context-engine/src/providers/ToolSystemRole.ts
-packages/context-engine/src/providers/PlanInjector.ts
-packages/context-engine/src/providers/AgentDocumentInjector/ContextInjector.ts
-packages/context-engine/src/providers/AgentDocumentInjector/index.ts
-packages/context-engine/src/providers/AgentDocumentInjector/SystemAppendInjector.ts
-packages/context-engine/src/providers/AgentDocumentInjector/shared.ts
-packages/context-engine/src/providers/AgentDocumentInjector/BeforeSystemInjector.ts
-packages/context-engine/src/providers/AgentDocumentInjector/SystemReplaceInjector.ts
-packages/context-engine/src/providers/AgentDocumentInjector/MessageInjector.ts
-packages/context-engine/src/providers/__tests__/UserMemoryInjector.test.ts
-packages/context-engine/src/providers/__tests__/PageEditorContextInjector.test.ts
-packages/context-engine/src/providers/__tests__/GroupAgentBuilderContextInjector.test.ts
-packages/context-engine/src/providers/__tests__/KnowledgeInjector.test.ts
-packages/context-engine/src/providers/__tests__/SelectedToolInjector.test.ts
-packages/context-engine/src/providers/__tests__/LocalSystemToolSnapshotInjector.test.ts
-packages/context-engine/src/providers/__tests__/EvalContextSystemInjector.test.ts
-packages/context-engine/src/providers/__tests__/AgentManagementContextInjector.test.ts
-packages/context-engine/src/providers/__tests__/GroupContextInjector.test.ts
-packages/context-engine/src/providers/__tests__/SystemRoleInjector.test.ts
-packages/context-engine/src/providers/__tests__/OnboardingActionHintInjector.test.ts
-packages/context-engine/src/providers/__tests__/AgentDocumentInjector.test.ts
-packages/context-engine/src/providers/__tests__/SkillContextProvider.test.ts
-packages/context-engine/src/providers/__tests__/SelectedSkillInjector.test.ts
-packages/context-engine/src/providers/__tests__/TopicReferenceContextInjector.test.ts
-packages/context-engine/src/providers/__tests__/HistorySummaryProvider.test.ts
-packages/context-engine/src/providers/__tests__/PageSelectionsInjector.test.ts
-packages/context-engine/src/providers/__tests__/ToolSystemRoleProvider.test.ts
-packages/context-engine/src/providers/__tests__/DiscordContextProvider.test.ts
-packages/context-engine/src/providers/__tests__/OnboardingContextInjector.test.ts
-packages/context-engine/src/providers/__tests__/SystemDateProvider.test.ts
-packages/context-engine/src/providers/__tests__/__snapshots__/UserMemoryInjector.test.ts.snap
-packages/context-engine/src/providers/__tests__/__snapshots__/SkillContextProvider.test.ts.snap
-packages/context-engine/src/providers/__tests__/__snapshots__/KnowledgeInjector.test.ts.snap
-packages/context-engine/src/providers/__tests__/__snapshots__/GroupContextInjector.test.ts.snap
-packages/context-engine/src/processors/PlaceholderVariables.ts
-packages/context-engine/src/processors/GroupRoleTransform.ts
-packages/context-engine/src/processors/AgentCouncilFlatten.ts
-packages/context-engine/src/processors/TasksFlatten.ts
-packages/context-engine/src/processors/index.ts
-packages/context-engine/src/processors/InputTemplate.ts
-packages/context-engine/src/processors/SupervisorRoleRestore.ts
-packages/context-engine/src/processors/MessageContent.ts
-packages/context-engine/src/processors/MessageCleanup.ts
-packages/context-engine/src/processors/ToolCall.ts
-packages/context-engine/src/processors/TaskMessage.ts
-packages/context-engine/src/processors/GroupOrchestrationFilter.ts
-packages/context-engine/src/processors/DisabledToolCallFilter.ts
-packages/context-engine/src/processors/GroupMessageFlatten.ts
-packages/context-engine/src/processors/CompressedGroupRoleTransform.ts
-packages/context-engine/src/processors/ToolMessageReorder.ts
-packages/context-engine/src/processors/ReactionFeedback.ts
-packages/context-engine/src/processors/HistoryTruncate.ts
-packages/context-engine/src/processors/__tests__/TasksFlatten.test.ts
-packages/context-engine/src/processors/__tests__/AgentCouncilFlatten.test.ts
-packages/context-engine/src/processors/__tests__/MessageContent.test.ts
-packages/context-engine/src/processors/__tests__/PlaceholderVariables.test.ts
-packages/context-engine/src/processors/__tests__/GroupRoleTransform.test.ts
-packages/context-engine/src/processors/__tests__/ToolCall.test.ts
-packages/context-engine/src/processors/__tests__/InputTemplate.test.ts
-packages/context-engine/src/processors/__tests__/HistoryTruncate.test.ts
-packages/context-engine/src/processors/__tests__/GroupOrchestrationFilter.test.ts
-packages/context-engine/src/processors/__tests__/ToolMessageReorder.test.ts
-packages/context-engine/src/processors/__tests__/SupervisorRoleRestore.test.ts
-packages/context-engine/src/processors/__tests__/GroupMessageFlatten.test.ts
-packages/context-engine/src/processors/__tests__/PlaceholderVariables.toolMessage.test.ts
-packages/context-engine/src/processors/__tests__/TaskMessage.test.ts
-packages/context-engine/src/processors/__tests__/ReactionFeedback.test.ts
-packages/context-engine/src/processors/__tests__/MessageCleanup.test.ts
-packages/context-engine/src/base/constants.ts
-packages/context-engine/src/base/BaseEveryUserContentProvider.ts
-packages/context-engine/src/base/BaseProcessor.ts
-packages/context-engine/src/base/BaseFirstUserContentProvider.ts
-packages/context-engine/src/base/BaseSystemRoleProvider.ts
-packages/context-engine/src/base/BaseProvider.ts
-packages/context-engine/src/base/BaseVirtualLastUserContentProvider.ts
-packages/context-engine/src/base/BaseLastUserContentProvider.ts
-packages/context-engine/src/base/__tests__/BaseEveryUserContentProvider.test.ts
-packages/context-engine/src/base/__tests__/BaseSystemRoleProvider.test.ts
-packages/context-engine/src/base/__tests__/BaseProvider.test.ts
-packages/context-engine/src/base/__tests__/BaseProcessor.test.ts
-packages/context-engine/src/base/__tests__/BaseFirstUserContentProvider.test.ts
-packages/context-engine/src/base/__tests__/BaseLastUserContentProvider.test.ts
-packages/context-engine/src/base/__tests__/BaseVirtualLastUserContentProvider.test.ts
-packages/context-engine/src/engine/index.ts
-packages/context-engine/src/engine/tools/ToolResolver.ts
-packages/context-engine/src/engine/tools/ToolArgumentsRepairer.ts
-packages/context-engine/src/engine/tools/index.ts
-packages/context-engine/src/engine/tools/buildStepToolDelta.ts
-packages/context-engine/src/engine/tools/utils.ts
-packages/context-engine/src/engine/tools/ManifestLoader.ts
-packages/context-engine/src/engine/tools/ToolsEngine.ts
-packages/context-engine/src/engine/tools/types.ts
-packages/context-engine/src/engine/tools/ToolNameResolver.ts
-packages/context-engine/src/engine/tools/enableCheckerFactory.ts
-packages/context-engine/src/engine/tools/__tests__/ToolResolver.test.ts
-packages/context-engine/src/engine/tools/__tests__/utils.test.ts
-packages/context-engine/src/engine/tools/__tests__/ToolsEngine.test.ts
-packages/context-engine/src/engine/tools/__tests__/buildStepToolDelta.test.ts
-packages/context-engine/src/engine/tools/__tests__/ToolArgumentsRepairer.test.ts
-packages/context-engine/src/engine/tools/__tests__/ToolNameResolver.test.ts
-packages/context-engine/src/engine/tools/__tests__/enableCheckerFactory.test.ts
-packages/context-engine/src/engine/tools/__tests__/ManifestLoader.test.ts
-packages/context-engine/src/engine/messages/MessagesEngine.ts
-packages/context-engine/src/engine/messages/index.ts
-packages/context-engine/src/engine/messages/types.ts
-packages/context-engine/src/engine/messages/__tests__/MessagesEngine.test.ts
-packages/context-engine/src/engine/skills/index.ts
-packages/context-engine/src/engine/skills/SkillResolver.ts
-packages/context-engine/src/engine/skills/buildStepSkillDelta.ts
-packages/context-engine/src/engine/skills/SkillEngine.ts
-packages/context-engine/src/engine/skills/types.ts
-packages/context-engine/src/engine/skills/__tests__/SkillResolver.test.ts
-packages/context-engine/src/engine/skills/__tests__/SkillEngine.test.ts
-packages/context-engine/src/engine/topicReference/index.ts
-packages/context-engine/src/engine/topicReference/resolveTopicReferences.ts
-packages/context-engine/src/engine/topicReference/__tests__/resolveTopicReferences.test.ts
+
 ```
 
 ## 小白阅读建议
-- 先看项目说明、`index` 入口、路由、业务服务、类型/结构定义等文件。英文文件名只是代码命名，不要求先理解英文语义。
-- 暂时跳过构建产物、测试快照和重复样板。
-- 如果这里是业务目录，优先找“谁调用它”和“它调用谁”。
+先看本目录下的 `index`、`route`、`store`、`service`、`schema`、`config` 等名字明显的文件，再顺着导入关系读更深层文件。

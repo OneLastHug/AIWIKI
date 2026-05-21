@@ -1,14 +1,28 @@
 # 文件：src/server/routers/lambda/config/index.test.ts
 
-## 文件职责初判
-请把这个页面当作源码旁白。当前基础版先展示源码节选和阅读提示；后续深度讲解任务会补充函数级解释、调用关系和小白类比。
+## 文件职责
+这个文件位于 `src/server/routers/lambda/config`。下面根据源码片段、导入导出和命名推断它在项目中的职责。
 
-## 阅读提示
-- 先看“引入的依赖”：文件开头的 `import` / `require` 会告诉你这个文件站在哪一层。
-- 再看“对外提供的内容”：`export` / `class` / `function` 分别表示导出、类、函数。
-- 最后看具体实现：理解输入、输出、副作用。
+## 引入/导出的依赖线索
+```text
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createCallerFactory } from '@/libs/trpc/lambda';
+import { type AuthContext } from '@/libs/trpc/lambda/context';
+import { createContextInner } from '@/libs/trpc/lambda/context';
+import { configRouter } from './index';
+```
 
-## 源码节选（保留原始代码，不翻译）
+## 主要对外内容
+```text
+const createCaller = createCallerFactory(configRouter);
+```
+
+## 小白怎么读
+1. 先看文件顶部 import，判断它依赖 UI、服务、数据库、状态还是配置。
+2. 再看 export 的对象，判断别人如何使用它。
+3. 最后看核心实现，不要一开始陷入每一行细节。
+
+## 源码节选（保留原始代码）
 ```text
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';

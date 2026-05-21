@@ -1,179 +1,57 @@
 # 目录：src/components
 
-## 它可能负责什么
-这个目录包含 166 个被抽样展示的文件。请从文件命名、子目录和关键源码入手理解它在项目中的职责。
+## 它负责什么
+`src/components` 是 LobeHub 代码树中的一个功能区域。下面的说明基于真实目录结构和被选中的源码文件生成，后续 Codex 深度解释会继续补全更细的调用关系。
 
-## 文件列表节选
+## 下面有哪些子目录
+- `404`：`src/components/404` 下的子功能区，建议展开继续读。
+- `Analytics`：`src/components/Analytics` 下的子功能区，建议展开继续读。
+- `AnimatedCollapsed`：`src/components/AnimatedCollapsed` 下的子功能区，建议展开继续读。
+- `AntdStaticMethods`：`src/components/AntdStaticMethods` 下的子功能区，建议展开继续读。
+- `BootErrorBoundary`：`src/components/BootErrorBoundary` 下的子功能区，建议展开继续读。
+- `BrandWatermark`：`src/components/BrandWatermark` 下的子功能区，建议展开继续读。
+- `Branding`：`src/components/Branding` 下的子功能区，建议展开继续读。
+- `BrowserIcon`：`src/components/BrowserIcon` 下的子功能区，建议展开继续读。
+- `BubblesLoading`：`src/components/BubblesLoading` 下的子功能区，建议展开继续读。
+- `Cell`：`src/components/Cell` 下的子功能区，建议展开继续读。
+- `ChangelogModal`：`src/components/ChangelogModal` 下的子功能区，建议展开继续读。
+- `ChatGroupWizard`：`src/components/ChatGroupWizard` 下的子功能区，建议展开继续读。
+- `CircleLoader`：`src/components/CircleLoader` 下的子功能区，建议展开继续读。
+- `CopyableLabel`：`src/components/CopyableLabel` 下的子功能区，建议展开继续读。
+- `DataStyleModal`：`src/components/DataStyleModal` 下的子功能区，建议展开继续读。
+- `Descriptions`：`src/components/Descriptions` 下的子功能区，建议展开继续读。
+- `DotsLoading`：`src/components/DotsLoading` 下的子功能区，建议展开继续读。
+- `DragUpload`：`src/components/DragUpload` 下的子功能区，建议展开继续读。
+- `DragUploadZone`：`src/components/DragUploadZone` 下的子功能区，建议展开继续读。
+- `Editor`：`src/components/Editor` 下的子功能区，建议展开继续读。
+- `EmojiPicker`：`src/components/EmojiPicker` 下的子功能区，建议展开继续读。
+- `Error`：`src/components/Error` 下的子功能区，建议展开继续读。
+- `ErrorBoundary`：`src/components/ErrorBoundary` 下的子功能区，建议展开继续读。
+- `FeatureList`：`src/components/FeatureList` 下的子功能区，建议展开继续读。
+- `FeedbackModal`：`src/components/FeedbackModal` 下的子功能区，建议展开继续读。
+- `FileIcon`：`src/components/FileIcon` 下的子功能区，建议展开继续读。
+- `FileParsingStatus`：`src/components/FileParsingStatus` 下的子功能区，建议展开继续读。
+- `FormAction`：`src/components/FormAction` 下的子功能区，建议展开继续读。
+- `FormInput`：`src/components/FormInput` 下的子功能区，建议展开继续读。
+- `GalleyGrid`：`src/components/GalleyGrid` 下的子功能区，建议展开继续读。
+- `GoBack`：`src/components/GoBack` 下的子功能区，建议展开继续读。
+- `GroupIcon`：`src/components/GroupIcon` 下的子功能区，建议展开继续读。
+- `GuideModal`：`src/components/GuideModal` 下的子功能区，建议展开继续读。
+- `GuideVideo`：`src/components/GuideVideo` 下的子功能区，建议展开继续读。
+- `HighlightNotification`：`src/components/HighlightNotification` 下的子功能区，建议展开继续读。
+- `HtmlPreview`：`src/components/HtmlPreview` 下的子功能区，建议展开继续读。
+- `ImageItem`：`src/components/ImageItem` 下的子功能区，建议展开继续读。
+- `IndexCard`：`src/components/IndexCard` 下的子功能区，建议展开继续读。
+- `InfoTooltip`：`src/components/InfoTooltip` 下的子功能区，建议展开继续读。
+- `InitProgress`：`src/components/InitProgress` 下的子功能区，建议展开继续读。
+
+## 下面有哪些重要文件
+- 没有发现直接文件，主要内容在更深层子目录。
+
+## 文件树节选
 ```text
-src/components/withSuspense.tsx
-src/components/TodoList.tsx
-src/components/AuthIcons.tsx
-src/components/RingLoading.tsx
-src/components/OfficialIcon.tsx
-src/components/PublishedTime.tsx
-src/components/Link.tsx
-src/components/StopLoading.tsx
-src/components/MaxTokenSlider.tsx
-src/components/DebugNode.tsx
-src/components/SidebarHeader/index.tsx
-src/components/DataStyleModal/index.tsx
-src/components/Statistic/index.tsx
-src/components/LibIcon/index.tsx
-src/components/JSONSchemaConfig/ItemRender.tsx
-src/components/ChangelogModal/VersionTag.tsx
-src/components/ChangelogModal/index.tsx
-src/components/ChangelogModal/ChangelogContent.tsx
-src/components/AntdStaticMethods/index.test.tsx
-src/components/AntdStaticMethods/index.tsx
-src/components/Analytics/X.tsx
-src/components/Analytics/Posthog.tsx
-src/components/Analytics/Google.tsx
-src/components/Analytics/Plausible.tsx
-src/components/Analytics/Vercel.tsx
-src/components/Analytics/HomePageTracker.tsx
-src/components/Analytics/LobeAnalyticsProvider.tsx
-src/components/Analytics/ReactScan.tsx
-src/components/Analytics/Desktop.tsx
-src/components/Analytics/index.tsx
-src/components/Analytics/Umami.tsx
-src/components/Analytics/LobeAnalyticsProviderWrapper.tsx
-src/components/Analytics/Clarity.tsx
-src/components/CircleLoader/index.tsx
-src/components/NeuralNetworkLoading/index.tsx
-src/components/FileIcon/config.ts
-src/components/FileIcon/index.tsx
-src/components/InlineRename/index.tsx
-src/components/GroupIcon/index.tsx
-src/components/CopyableLabel/index.tsx
-src/components/404/index.tsx
-src/components/Menu/index.tsx
-src/components/Notification/index.tsx
-src/components/PageTitle/index.tsx
-src/components/FeedbackModal/index.tsx
-src/components/StructuredData/index.tsx
-src/components/Editor/AutoSaveHint.tsx
-src/components/InitProgress/index.tsx
-src/components/DragUploadZone/useLocalDragUpload.ts
-src/components/DragUploadZone/usePasteFile.ts
-src/components/DragUploadZone/DragUploadProvider.tsx
-src/components/DragUploadZone/useUploadFiles.ts
-src/components/DragUploadZone/index.tsx
-src/components/mdx/Image.tsx
-src/components/mdx/constants.ts
-src/components/mdx/CodeBlock.tsx
-src/components/mdx/Image.vite.tsx
-src/components/mdx/index.tsx
-src/components/mdx/Link.tsx
-src/components/ErrorBoundary/SilentFallback.tsx
-src/components/ErrorBoundary/AlertFallback.tsx
-src/components/ErrorBoundary/index.tsx
-src/components/SkillSourceTag/index.tsx
-src/components/NProgress/index.tsx
-src/components/MCPDepsIcon/Java.tsx
-src/components/MCPDepsIcon/Terminal.tsx
-src/components/MCPDepsIcon/UV.tsx
-src/components/MCPDepsIcon/index.tsx
-src/components/MCPDepsIcon/PowerShell.tsx
-src/components/KnowledgeIcon/index.tsx
-src/components/GalleyGrid/style.ts
-src/components/GalleyGrid/Grid.tsx
-src/components/GalleyGrid/index.tsx
-src/components/SkillAvatar/index.tsx
-src/components/Loading/index.ts
-src/components/Loading/CircleLoading/index.tsx
-src/components/Loading/SkeletonLoading/index.tsx
-src/components/Loading/UpdateLoading/index.tsx
-src/components/Loading/BrandTextLoading/index.tsx
-src/components/Loading/BrandTextLoading/index.module.css
-src/components/Loading/FullscreenLoading/index.tsx
-src/components/Descriptions/index.tsx
-src/components/InvalidAPIKey/ComfyUIForm.tsx
-src/components/InvalidAPIKey/LoadingContext.ts
-src/components/InvalidAPIKey/useApiKey.ts
-src/components/InvalidAPIKey/index.tsx
-src/components/InvalidAPIKey/ProviderApiKeyForm.tsx
-src/components/InvalidAPIKey/Bedrock.tsx
-src/components/InvalidAPIKey/__tests__/ComfyUIForm.test.tsx
-src/components/BootErrorBoundary/index.tsx
-src/components/client/ClientOnly.tsx
-src/components/client/ClientResponsiveLayout.tsx
-src/components/client/ClientResponsiveContent/index.tsx
-src/components/Cell/Divider.tsx
-src/components/Cell/index.tsx
-src/components/InfoTooltip/index.tsx
-src/components/ProgressItem/index.tsx
-src/components/server/MobileNavLayout.tsx
-src/components/server/ServerLayout.tsx
-src/components/Error/Description.tsx
-src/components/Error/RedirectLogin.tsx
-src/components/Error/fetchErrorNotification.tsx
-src/components/Error/index.tsx
-src/components/Error/loginRequiredNotification.tsx
-src/components/Skeleton/SkeletonInput.tsx
-src/components/Skeleton/index.ts
-src/components/Skeleton/SkeletonSwitch.tsx
-src/components/BubblesLoading/index.tsx
-src/components/MemberSelectionModal/index.ts
-src/components/MemberSelectionModal/MemberSelectionModal.tsx
-src/components/FormInput/FormPassword.tsx
-src/components/FormInput/FormInput.tsx
-src/components/FormInput/index.ts
-src/components/FormInput/FormInput.test.tsx
-src/components/FormInput/FormSliderWithInput.tsx
-src/components/HighlightNotification/index.tsx
-src/components/RenameModal/index.tsx
-src/components/WebFavicon/index.tsx
-src/components/StatisticCard/TitleWithPercentage.tsx
-src/components/StatisticCard/index.tsx
-src/components/StatisticCard/growthPercentage.tsx
-src/components/AnimatedCollapsed/index.tsx
-src/components/BrowserIcon/types.ts
-src/components/BrowserIcon/index.tsx
-src/components/EmojiPicker/index.tsx
-src/components/Branding/index.ts
-src/components/Branding/ProductLogo/Custom.tsx
-src/components/Branding/ProductLogo/index.tsx
-src/components/Branding/OrgBrand/index.tsx
-src/components/ImageItem/style.ts
-src/components/ImageItem/index.tsx
-src/components/MCPStdioCommandInput/index.tsx
-src/components/DragUpload/useDragUpload.tsx
-src/components/DragUpload/useDragUpload.test.tsx
-src/components/DragUpload/index.tsx
-src/components/InlineTable/index.tsx
-src/components/OllamaSetupGuide/index.tsx
-src/components/FeatureList/index.tsx
-src/components/TipGuide/index.tsx
-src/components/FormAction/index.tsx
-src/components/PanelTitle/index.tsx
-src/components/ChatGroupWizard/index.ts
-src/components/ChatGroupWizard/ChatGroupWizard.tsx
-src/components/ChatGroupWizard/templates.ts
-src/components/TextArea/index.tsx
-src/components/SafeSpacing/index.tsx
-src/components/Plugins/PluginAvatar.tsx
-src/components/Plugins/PluginTag.tsx
-src/components/Plugins/MCPTag.tsx
-src/components/BrandWatermark/index.tsx
-src/components/ManifestPreviewer/index.tsx
-src/components/FileParsingStatus/EmbeddingStatus.tsx
-src/components/FileParsingStatus/index.tsx
-src/components/KeyValueEditor/utils.ts
-src/components/KeyValueEditor/index.tsx
-src/components/ModelSelect/NewModelBadge.tsx
-src/components/ModelSelect/index.tsx
-src/components/GuideModal/index.tsx
-src/components/IndexCard/index.tsx
-src/components/GuideVideo/index.tsx
-src/components/InstantSwitch/index.tsx
-src/components/HtmlPreview/index.ts
-src/components/HtmlPreview/PreviewDrawer.tsx
-src/components/StreamingMarkdown/index.tsx
-src/components/GoBack/index.tsx
-src/components/DotsLoading/index.tsx
+
 ```
 
 ## 小白阅读建议
-- 先看项目说明、`index` 入口、路由、业务服务、类型/结构定义等文件。英文文件名只是代码命名，不要求先理解英文语义。
-- 暂时跳过构建产物、测试快照和重复样板。
-- 如果这里是业务目录，优先找“谁调用它”和“它调用谁”。
+先看本目录下的 `index`、`route`、`store`、`service`、`schema`、`config` 等名字明显的文件，再顺着导入关系读更深层文件。

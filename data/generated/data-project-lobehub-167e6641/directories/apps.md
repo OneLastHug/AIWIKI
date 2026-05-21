@@ -1,213 +1,22 @@
 # 目录：apps
 
-## 它可能负责什么
-这个目录包含 200 个被抽样展示的文件。请从文件命名、子目录和关键源码入手理解它在项目中的职责。
+## 它负责什么
+`apps` 是 LobeHub 代码树中的一个功能区域。下面的说明基于真实目录结构和被选中的源码文件生成，后续 Codex 深度解释会继续补全更细的调用关系。
 
-## 文件列表节选
+## 下面有哪些子目录
+- `cli`：`apps/cli` 下的子功能区，建议展开继续读。
+- `desktop`：`apps/desktop` 下的子功能区，建议展开继续读。
+- `device-gateway`：`apps/device-gateway` 下的子功能区，建议展开继续读。
+
+## 下面有哪些重要文件
+- 没有发现直接文件，主要内容在更深层子目录。
+
+## 文件树节选
 ```text
-apps/device-gateway/package.json
 apps/device-gateway/tsconfig.json
-apps/device-gateway/wrangler.toml
-apps/device-gateway/scripts/extract-public-key.mjs
-apps/device-gateway/src/auth.ts
-apps/device-gateway/src/index.ts
-apps/device-gateway/src/auth.test.ts
-apps/device-gateway/src/types.ts
-apps/device-gateway/src/DeviceGatewayDO.ts
-apps/desktop/module-deps.config.mjs
-apps/desktop/Development.md
-apps/desktop/.stylelintignore
-apps/desktop/electron-builder.mjs
-apps/desktop/overlay.html
-apps/desktop/WindowOverlayCapture.md
-apps/desktop/.i18nrc.js
-apps/desktop/README.zh-CN.md
-apps/desktop/.remarkrc.mjs
-apps/desktop/index.html
-apps/desktop/pnpm-workspace.yaml
-apps/desktop/stylelint.config.mjs
-apps/desktop/vitest.config.mts
-apps/desktop/.prettierignore
-apps/desktop/README.md
-apps/desktop/prettier.config.mjs
-apps/desktop/.gitignore
-apps/desktop/popup.html
-apps/desktop/dev-app-update.yml
-apps/desktop/package.json
+apps/cli/tsconfig.json
 apps/desktop/tsconfig.json
-apps/desktop/native-deps.config.mjs
-apps/desktop/external-runtime-deps.config.mjs
-apps/desktop/electron.vite.config.ts
-apps/desktop/scripts/generate-tray-template.mjs
-apps/desktop/scripts/download-agent-browser.mjs
-apps/desktop/scripts/i18nWorkflow/const.ts
-apps/desktop/scripts/i18nWorkflow/index.ts
-apps/desktop/scripts/i18nWorkflow/utils.ts
-apps/desktop/scripts/i18nWorkflow/genDefaultLocale.ts
-apps/desktop/scripts/i18nWorkflow/genDiff.ts
-apps/desktop/scripts/update-test/setup.sh
-apps/desktop/scripts/update-test/run-test.sh
-apps/desktop/scripts/update-test/dev-app-update.local.yml
-apps/desktop/scripts/update-test/README.md
-apps/desktop/scripts/update-test/stop-server.sh
-apps/desktop/scripts/update-test/.gitignore
-apps/desktop/scripts/update-test/start-server.sh
-apps/desktop/scripts/update-test/generate-manifest.sh
-apps/desktop/resources/tray.png
-apps/desktop/resources/splash.html
-apps/desktop/resources/dmg.png
-apps/desktop/resources/error.html
-apps/desktop/resources/trayTemplate@2x.png
-apps/desktop/resources/trayTemplate.png
-apps/desktop/resources/locales/zh-CN/common.json
-apps/desktop/resources/locales/zh-CN/dialog.json
-apps/desktop/resources/locales/zh-CN/menu.json
-apps/desktop/resources/locales/fr-FR/common.json
-apps/desktop/resources/locales/fr-FR/dialog.json
-apps/desktop/resources/locales/fr-FR/menu.json
-apps/desktop/resources/locales/en/common.json
-apps/desktop/resources/locales/en/dialog.json
-apps/desktop/resources/locales/en/menu.json
-apps/desktop/resources/locales/ko-KR/common.json
-apps/desktop/resources/locales/ko-KR/dialog.json
-apps/desktop/resources/locales/ko-KR/menu.json
-apps/desktop/resources/locales/es-ES/common.json
-apps/desktop/resources/locales/es-ES/dialog.json
-apps/desktop/resources/locales/es-ES/menu.json
-apps/desktop/resources/locales/de-DE/common.json
-apps/desktop/resources/locales/de-DE/dialog.json
-apps/desktop/resources/locales/de-DE/menu.json
-apps/desktop/resources/locales/ja-JP/common.json
-apps/desktop/resources/locales/ja-JP/dialog.json
-apps/desktop/resources/locales/ja-JP/menu.json
-apps/desktop/resources/locales/pl-PL/common.json
-apps/desktop/resources/locales/pl-PL/dialog.json
-apps/desktop/resources/locales/pl-PL/menu.json
-apps/desktop/resources/locales/fa-IR/common.json
-apps/desktop/resources/locales/fa-IR/dialog.json
-apps/desktop/resources/locales/fa-IR/menu.json
-apps/desktop/resources/locales/tr-TR/common.json
-apps/desktop/resources/locales/tr-TR/dialog.json
-apps/desktop/resources/locales/tr-TR/menu.json
-apps/desktop/resources/locales/vi-VN/common.json
-apps/desktop/resources/locales/vi-VN/dialog.json
-apps/desktop/resources/locales/vi-VN/menu.json
-apps/desktop/resources/locales/it-IT/common.json
-apps/desktop/resources/locales/it-IT/dialog.json
-apps/desktop/resources/locales/it-IT/menu.json
-apps/desktop/resources/locales/pt-BR/common.json
-apps/desktop/resources/locales/pt-BR/dialog.json
-apps/desktop/resources/locales/pt-BR/menu.json
-apps/desktop/resources/locales/zh-TW/common.json
-apps/desktop/resources/locales/zh-TW/dialog.json
-apps/desktop/resources/locales/zh-TW/menu.json
-apps/desktop/resources/locales/nl-NL/common.json
-apps/desktop/resources/locales/nl-NL/dialog.json
-apps/desktop/resources/locales/nl-NL/menu.json
-apps/desktop/resources/locales/ru-RU/common.json
-apps/desktop/resources/locales/ru-RU/dialog.json
-apps/desktop/resources/locales/ru-RU/menu.json
-apps/desktop/resources/locales/ar/common.json
-apps/desktop/resources/locales/ar/dialog.json
-apps/desktop/resources/locales/ar/menu.json
-apps/desktop/resources/locales/bg-BG/common.json
-apps/desktop/resources/locales/bg-BG/dialog.json
-apps/desktop/resources/locales/bg-BG/menu.json
-apps/desktop/stubs/types/package.json
-apps/desktop/stubs/types/src/index.ts
-apps/desktop/stubs/business-const/package.json
-apps/desktop/stubs/business-const/src/index.ts
-apps/desktop/src/preload/index.ts
-apps/desktop/src/preload/invoke.ts
-apps/desktop/src/preload/streamer.ts
-apps/desktop/src/preload/electronApi.test.ts
-apps/desktop/src/preload/invoke.test.ts
-apps/desktop/src/preload/routeInterceptor.ts
-apps/desktop/src/preload/streamer.test.ts
-apps/desktop/src/preload/electronApi.ts
-apps/desktop/src/preload/routeInterceptor.test.ts
-apps/desktop/src/overlay/useDockPosition.ts
-apps/desktop/src/overlay/constants.ts
-apps/desktop/src/overlay/overlay.css.ts
-apps/desktop/src/overlay/WindowTag.tsx
-apps/desktop/src/overlay/useDragSelection.test.ts
-apps/desktop/src/overlay/ScreenCaptureOverlay.tsx
-apps/desktop/src/overlay/overlaySelectionState.ts
-apps/desktop/src/overlay/entry.tsx
-apps/desktop/src/overlay/panelPlacement.ts
-apps/desktop/src/overlay/useDragSelection.ts
-apps/desktop/src/overlay/useWindowHighlight.ts
-apps/desktop/src/overlay/avatar.css.ts
-apps/desktop/src/overlay/ChatPanel.tsx
-apps/desktop/src/overlay/chatPanel.css.ts
-apps/desktop/src/overlay/ChatPanel.test.tsx
-apps/desktop/src/overlay/useWindowHighlight.test.ts
-apps/desktop/src/overlay/Avatar.tsx
-apps/desktop/src/overlay/cn.ts
-apps/desktop/src/overlay/overlaySelectionState.test.ts
-apps/desktop/src/main/index.ts
-apps/desktop/src/main/exports.d.ts
-apps/desktop/src/main/env.ts
-apps/desktop/src/main/appBrowsers.ts
-apps/desktop/src/main/exports.ts
-apps/desktop/src/main/global.d.ts
-apps/desktop/src/main/package.json
-apps/desktop/src/main/libs/mcp/client.ts
-apps/desktop/src/main/libs/mcp/types.ts
-apps/desktop/src/main/libs/acp/client.ts
-apps/desktop/src/main/libs/acp/index.ts
-apps/desktop/src/main/libs/acp/types.ts
-apps/desktop/src/main/types/protocol.ts
-apps/desktop/src/main/types/store.ts
-apps/desktop/src/main/__mocks__/setup.ts
-apps/desktop/src/main/__mocks__/node-mac-permissions.ts
-apps/desktop/src/main/core/App.ts
-apps/desktop/src/main/core/infrastructure/RendererUrlManager.ts
-apps/desktop/src/main/core/infrastructure/IoCContainer.ts
-apps/desktop/src/main/core/infrastructure/LocalFileProtocolManager.ts
-apps/desktop/src/main/core/infrastructure/BackendProxyProtocolManager.ts
-apps/desktop/src/main/core/infrastructure/I18nManager.ts
-apps/desktop/src/main/core/infrastructure/ProtocolManager.ts
-apps/desktop/src/main/core/infrastructure/StoreManager.ts
-apps/desktop/src/main/core/infrastructure/StaticFileServerManager.ts
-apps/desktop/src/main/core/infrastructure/RendererProtocolManager.ts
-apps/desktop/src/main/core/infrastructure/ToolDetectorManager.ts
-apps/desktop/src/main/core/infrastructure/UpdaterManager.ts
-apps/desktop/src/main/core/infrastructure/__tests__/StoreManager.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/RendererProtocolManager.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/ProtocolManager.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/IoCContainer.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/I18nManager.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/UpdaterManager.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/StaticFileServerManager.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/LocalFileProtocolManager.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/RendererUrlManager.test.ts
-apps/desktop/src/main/core/infrastructure/__tests__/BackendProxyProtocolManager.test.ts
-apps/desktop/src/main/core/infrastructure/migration/index.ts
-apps/desktop/src/main/core/infrastructure/migration/defineMigration.ts
-apps/desktop/src/main/core/infrastructure/migration/001-normalize-update-channel.ts
-apps/desktop/src/main/core/__tests__/App.test.ts
-apps/desktop/src/main/core/browser/WindowThemeManager.ts
-apps/desktop/src/main/core/browser/WindowStateManager.ts
-apps/desktop/src/main/core/browser/Browser.ts
-apps/desktop/src/main/core/browser/BrowserManager.ts
-apps/desktop/src/main/core/browser/__tests__/WindowStateManager.test.ts
-apps/desktop/src/main/core/browser/__tests__/BrowserManager.test.ts
-apps/desktop/src/main/core/browser/__tests__/Browser.test.ts
-apps/desktop/src/main/core/browser/__tests__/WindowThemeManager.test.ts
-apps/desktop/src/main/core/ui/MenuManager.ts
-apps/desktop/src/main/core/ui/ShortcutManager.ts
-apps/desktop/src/main/core/ui/Tray.ts
-apps/desktop/src/main/core/ui/TrayManager.ts
-apps/desktop/src/main/core/ui/__tests__/ShortcutManager.test.ts
-apps/desktop/src/main/core/ui/__tests__/Tray.test.ts
-apps/desktop/src/main/core/ui/__tests__/TrayManager.test.ts
-apps/desktop/src/main/core/ui/__tests__/MenuManager.test.ts
-apps/desktop/src/main/modules/heterogeneousAgent/index.ts
-apps/desktop/src/main/modules/heterogeneousAgent/types.ts
 ```
 
 ## 小白阅读建议
-- 先看项目说明、`index` 入口、路由、业务服务、类型/结构定义等文件。英文文件名只是代码命名，不要求先理解英文语义。
-- 暂时跳过构建产物、测试快照和重复样板。
-- 如果这里是业务目录，优先找“谁调用它”和“它调用谁”。
+先看本目录下的 `index`、`route`、`store`、`service`、`schema`、`config` 等名字明显的文件，再顺着导入关系读更深层文件。

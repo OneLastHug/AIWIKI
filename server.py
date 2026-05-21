@@ -490,7 +490,32 @@ def shorten_sidebar_label(path: str, max_len: int = 52) -> str:
     return f"{path[:head]}...{path[-tail:]}"
 
 
-def page(title: str, body: str, sidebar: str = "") -> bytes:
+
+def load_repo_progress(repo_id: str | None) -> dict | None:
+    if not repo_id:
+        return None
+    progress_path = BASE / "generated" / repo_id / "progress.json"
+    if not progress_path.exists():
+        return None
+    try:
+        return json.loads(progress_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def progress_card_html(repo_id: str | None) -> str:
+    pr = load_repo_progress(repo_id)
+    if not pr:
+        return "<div class='right-card progress-card'><div class='right-label'>DOC STATUS</div><strong>v0.1</strong><div class='progress'><span></span></div><small>生成文档可读性优化中</small></div>"
+    done = int(pr.get('done') or 0)
+    total = int(pr.get('total') or 0)
+    percent = float(pr.get('percent') or (done / total * 100 if total else 0))
+    status = html.escape(str(pr.get('status') or 'running'))
+    current = html.escape(str(pr.get('current') or ''))
+    unit = html.escape(str(pr.get('unit') or '目录+文件'))
+    return f"<div class='right-card progress-card'><div class='right-label'>解析进度</div><strong>{percent:.1f}%</strong><div class='progress'><span style='width:{max(0,min(100,percent)):.1f}%'></span></div><small>{done} / {total} {unit}<br>状态：{status}<br>{current}</small></div>"
+
+def page(title: str, body: str, sidebar: str = "", repo_id: str | None = None) -> bytes:
     has_sidebar = bool(sidebar.strip())
     escaped_title = html.escape(title)
     sidebar_panel = (
@@ -509,7 +534,7 @@ def page(title: str, body: str, sidebar: str = "") -> bytes:
     aside = f"<aside class='sidebar'>{sidebar_panel}</aside>" if has_sidebar else ""
     rightbar = (
         "<aside class='rightbar'>"
-        "<div class='right-card progress-card'><div class='right-label'>DOC STATUS</div><strong>v0.1</strong><div class='progress'><span></span></div><small>生成文档可读性优化中</small></div>"
+        + progress_card_html(repo_id) +
         "<div class='right-card'><div class='right-label'>页面目录</div><div id='page-toc' class='page-toc'><span class='muted'>加载中…</span></div></div><div class='right-card'><div class='right-label'>阅读建议</div><p>先看首页路线，再读架构与目录，再进入文件级讲解。展开状态会自动记住。</p></div>"
         "<div class='right-card'><div class='right-label'>过滤规则</div><p>纯 MD / PDF / Office 文档仓库会被拒绝，只保留代码学习项目。</p></div>"
         "</aside>"
@@ -523,7 +548,7 @@ def page(title: str, body: str, sidebar: str = "") -> bytes:
 .adbar{{height:32px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#111820;color:#d6dde3;border-bottom:1px solid var(--border);font-size:13px}}:root[data-theme='light'] .adbar{{background:#f7f9fb;color:#4b5563}}.adbar b{{color:var(--accent);font-weight:650}}
 .topbar{{position:sticky;top:0;z-index:60;height:var(--header-h);display:grid;grid-template-columns:auto minmax(120px,520px) auto;align-items:center;gap:18px;padding:0 22px;background:rgba(13,17,22,.9);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}}:root[data-theme='light'] .topbar{{background:rgba(255,255,255,.9)}}.brand{{display:flex;align-items:center;gap:12px;min-width:0}}.brand-mark{{position:relative;width:30px;height:24px;display:inline-block}}.brand-mark:before,.brand-mark:after{{content:'';position:absolute;width:20px;height:7px;border-radius:99px;background:var(--accent);transform:skewX(-22deg)}}.brand-mark:before{{left:0;top:2px}}.brand-mark:after{{right:0;bottom:2px}}.brand strong{{font-size:18px;font-weight:740;letter-spacing:-.04em}}.brand span{{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}}.brand span span{{padding-left:10px;border-left:1px solid var(--border)}}.search{{height:36px;border:1px solid var(--border);background:var(--panel);border-radius:10px;display:flex;align-items:center;gap:10px;color:var(--muted);padding:0 10px 0 12px;font-size:14px}}.search input{{flex:1;border:0;background:transparent;color:var(--text);font:inherit;min-width:80px;outline:0;padding:0}}.search input::placeholder{{color:var(--muted)}}.search kbd{{margin-left:auto;border:1px solid var(--border-2);border-radius:6px;padding:1px 6px;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg)}}.top-actions{{display:flex;gap:9px;align-items:center;justify-content:flex-end}}.top-pill,.theme-toggle{{height:36px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:10px;padding:0 12px;font-size:13px;font-weight:570;background:var(--panel);color:var(--text-2);cursor:pointer}}.top-pill.primary{{background:var(--accent);color:#101400;border-color:transparent}}.theme-toggle{{width:38px;padding:0;font-size:17px}}.theme-toggle .sun{{display:none}}:root[data-theme='light'] .theme-toggle .sun{{display:inline}}:root[data-theme='light'] .theme-toggle .moon{{display:none}}
 .layout{{display:grid;min-height:calc(100vh - var(--header-h) - 32px)}}.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr) var(--right-w)}}.layout.no-sidebar{{grid-template-columns:minmax(0,1fr)}}.sidebar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;background:var(--bg);border-right:1px solid var(--border);padding:24px 18px 34px;resize:horizontal;min-width:240px;max-width:620px;width:var(--sidebar-w);scrollbar-gutter:stable}}.sidebar-panel{{display:grid;gap:12px}}.side-kicker,.right-label{{font:700 11px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}}.sidebar-title{{margin:0 0 8px;font-size:16px;line-height:1.25;letter-spacing:-.02em}}.repo-id{{display:inline-flex;width:fit-content;max-width:100%;padding:5px 9px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:8px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-size:12px;font-weight:650}}
-.repo-nav{{display:block}}.nav-section{{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}}.nav-section:last-child{{border-bottom:0;margin-bottom:0;padding-bottom:0}}.nav-section-title{{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}}.overview-link{{display:block;padding:8px 10px;border-radius:8px;color:var(--text-2);font-size:13px;line-height:1.45}}.overview-link:hover{{background:var(--panel);color:var(--text);text-decoration:none}}.repo-tree{{display:grid;gap:4px}}.tree-node,.tree-leaf{{display:block;min-width:0}}.tree-node>summary,.tree-leaf{{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;color:var(--text-2);font-size:13px;line-height:1.45}}.tree-node>summary{{cursor:pointer;list-style:none;user-select:none}}.tree-node>summary::-webkit-details-marker{{display:none}}.tree-node>summary::before{{content:'▸';width:12px;color:var(--muted);font-size:10px;transition:transform .12s ease}}.tree-node[open]>summary::before{{transform:rotate(90deg)}}.tree-node>summary:hover,.tree-leaf:hover,.overview-link:hover,.tree-doc-link:hover{{background:var(--panel);color:var(--text);text-decoration:none}}.is-active{{background:color-mix(in srgb,var(--accent) 16%,transparent)!important;color:var(--text)!important;border-color:color-mix(in srgb,var(--accent) 35%,transparent)!important}}.tree-doc-link{{display:block;margin:-2px 0 4px 24px;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent);font-size:12px;font-weight:650}}.tree-doc-link:hover{{text-decoration:none;background:color-mix(in srgb,var(--accent) 16%,transparent)}}.tree-children{{display:grid;gap:3px;margin-left:13px;padding-left:10px;border-left:1px solid var(--border)}}.tree-label{{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.tree-missing{{opacity:.7}}
+.repo-nav{{display:block}}.nav-section{{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}}.nav-section:last-child{{border-bottom:0;margin-bottom:0;padding-bottom:0}}.nav-section-title{{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}}.overview-link{{display:block;padding:8px 10px;border-radius:8px;color:var(--text-2);font-size:13px;line-height:1.45}}.overview-link:hover{{background:var(--panel);color:var(--text);text-decoration:none}}.repo-tree{{display:grid;gap:4px}}.tree-node,.tree-leaf{{display:block;min-width:0}}.tree-node>summary,.tree-leaf{{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;color:var(--text-2);font-size:13px;line-height:1.45}}.tree-node>summary{{cursor:pointer;list-style:none;user-select:none}}.tree-node>summary::-webkit-details-marker{{display:none}}.tree-summary:focus,.tree-summary:focus-visible,.tree-toggle:focus,.tree-toggle:focus-visible,.tree-toggle:active,.tree-dir-link:focus,.tree-dir-link:focus-visible{{outline:none!important;box-shadow:none!important;background:transparent!important}}.tree-toggle{{flex:0 0 auto;width:18px;height:18px;padding:0;border:0;appearance:none;-webkit-appearance:none;border-radius:0;background:transparent!important;color:var(--muted);cursor:pointer;font:700 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:inline-flex;align-items:center;justify-content:center;outline:none!important;box-shadow:none!important;-webkit-tap-highlight-color:transparent}}.tree-node[open] .tree-toggle{{transform:rotate(90deg)}}.tree-dir-link{{flex:1 1 auto;min-width:0;color:inherit}}.tree-node>summary:hover,.tree-leaf:hover,.overview-link:hover{{background:var(--panel);color:var(--text);text-decoration:none}}.is-active{{background:transparent!important;color:var(--accent)!important;border-color:transparent!important;box-shadow:none!important;font-weight:700}}.tree-children{{display:grid;gap:3px;margin-left:13px;padding-left:10px;border-left:1px solid var(--border)}}.tree-label{{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.tree-missing{{opacity:.7}}
 main{{min-width:0;padding:34px 38px 74px;background:var(--bg)}}.content-wrap{{width:min(100%,860px);margin:0 auto}}.card{{min-width:0;background:transparent;border:0;border-radius:0;padding:0;box-shadow:none}}.layout.no-sidebar main{{padding-top:58px}}.layout.no-sidebar .content-wrap{{width:min(100%,980px)}}.layout.no-sidebar .card{{padding:0}}
 .card h1{{font-size:clamp(2.45rem,4.8vw,4.7rem);line-height:1.02;letter-spacing:-.065em;margin:0 0 18px;color:var(--text);font-weight:780}}.layout.has-sidebar .card h1{{font-size:clamp(2.25rem,4vw,4.15rem)}}.card h2{{font-size:clamp(1.45rem,2vw,2rem);line-height:1.18;letter-spacing:-.035em;margin:2.15em 0 .72em;color:var(--text);font-weight:740}}.card h3{{font-size:clamp(1.14rem,1.35vw,1.36rem);line-height:1.28;letter-spacing:-.02em;margin:1.75em 0 .55em;font-weight:700}}.card h4,.card h5,.card h6{{margin:1.35em 0 .45em;line-height:1.3}}.card p{{margin:0 0 1.05em;color:var(--text-2);font-size:16px}}.card ul,.card ol{{padding-left:1.35rem;margin:0 0 1.15em;color:var(--text-2)}}.card li{{margin:.36em 0;padding-left:.08em}}.card strong{{font-weight:760;color:var(--text)}}.card a{{color:var(--link);text-decoration:none}}.card a:hover{{color:var(--accent);text-decoration:underline;text-underline-offset:3px}}.muted{{color:var(--muted)!important}}small{{color:var(--muted);font-size:13px}}
 .card blockquote{{margin:1.35em 0;padding:14px 18px;border-left:3px solid color-mix(in srgb,var(--text) 45%,transparent);background:var(--quote);border-radius:0 12px 12px 0;color:var(--text-2)}}pre{{max-width:100%;overflow-x:auto;overflow-y:hidden;background:var(--code-bg);border:1px solid var(--border);padding:16px 18px;border-radius:12px;margin:1.25em 0;color:var(--text)}}pre code{{display:block;min-width:max-content;background:none;border:0;padding:0;border-radius:0;white-space:pre;font:13px/1.68 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;color:var(--text-2)}}code{{background:var(--code-bg);border:1px solid var(--border);padding:.13em .38em;border-radius:6px;font:0.9em/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text);overflow-wrap:anywhere}}
@@ -552,7 +577,7 @@ function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='
   function makeSearch(){{
     var input=document.getElementById('nav-search');
     if(!input) return;
-    var items=[].slice.call(document.querySelectorAll('.overview-link,.tree-node>summary,.tree-leaf,.tree-doc-link'));
+    var items=[].slice.call(document.querySelectorAll('.overview-link,.tree-dir-link,.tree-leaf'));
     var sections=[].slice.call(document.querySelectorAll('.nav-section'));
     input.addEventListener('input', function(){{
       var q=input.value.trim().toLowerCase();
@@ -562,7 +587,7 @@ function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='
         el.style.display=show?'':'none';
       }});
       sections.forEach(function(sec){{
-        var has=[].slice.call(sec.querySelectorAll('.overview-link,.tree-node>summary,.tree-leaf,.tree-doc-link')).some(function(el){{ return el.style.display!== 'none'; }});
+        var has=[].slice.call(sec.querySelectorAll('.overview-link,.tree-dir-link,.tree-leaf')).some(function(el){{ return el.style.display!== 'none'; }});
         sec.style.display=has?'':'none';
       }});
     }});
@@ -571,26 +596,50 @@ function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='
     var openSet={{}};
     try{{openSet=JSON.parse(localStorage.getItem('repo-docs-open')||'{{}}')||{{}};}}catch(e){{}}
     document.querySelectorAll('.tree-node').forEach(function(d){{
-      var t=d.querySelector('summary'); if(!t) return;
-      var k=t.getAttribute('title')||t.textContent.trim();
+      var summary=d.querySelector('.tree-summary');
+      var toggle=d.querySelector('.tree-toggle');
+      var link=d.querySelector('.tree-dir-link');
+      if(!summary) return;
+      var k=summary.getAttribute('title')||summary.textContent.trim();
       if(openSet[k]) d.open=true;
       d.addEventListener('toggle', function(){{
-        var key=t.getAttribute('title')||t.textContent.trim();
+        var key=summary.getAttribute('title')||summary.textContent.trim();
         openSet[key]=d.open;
         try{{localStorage.setItem('repo-docs-open', JSON.stringify(openSet));}}catch(e){{}}
       }});
+      if(toggle){{
+        toggle.addEventListener('click', function(e){{
+          e.preventDefault();
+          e.stopPropagation();
+          d.open=!d.open;
+        }});
+      }}
+      if(link){{
+        link.addEventListener('click', function(e){{
+          var href=d.getAttribute('data-doc');
+          if(!href) e.preventDefault();
+        }});
+      }}
     }});
   }}
   function highlightCurrent(){{
-    var p=location.pathname.replace(/\\/$/,'');
-    document.querySelectorAll('.overview-link,.tree-node>summary,.tree-leaf,.tree-doc-link').forEach(function(el){{
+    var p=location.pathname.replace(/\/$/,'');
+    var best=null;
+    document.querySelectorAll('.overview-link,.tree-dir-link,.tree-leaf').forEach(function(el){{
+      el.classList.remove('is-active');
       var href=el.getAttribute('href');
-      if(!href) return;
+      if(!href || href==='#') return;
       var a=document.createElement('a'); a.href=href;
-      var hp=(a.pathname||'').replace(/\\/$/,'');
-      if(hp===p){{ el.classList.add('is-active'); var parent=el.closest('.tree-node'); while(parent){{ parent.open=true; parent=parent.parentElement ? parent.parentElement.closest('.tree-node') : null; }} }}
+      var hp=(a.pathname||'').replace(/\/$/,'');
+      if(hp===p && (!best || (href.length > (best.getAttribute('href')||'').length))) best=el;
     }});
+    if(best){{
+      best.classList.add('is-active');
+      var parent=best.closest('.tree-node');
+      while(parent){{ parent.open=true; parent=parent.parentElement ? parent.parentElement.closest('.tree-node') : null; }}
+    }}
   }}
+
   function buildPageToc(){{
     var toc=document.getElementById('page-toc');
     if(!toc) return;
@@ -692,9 +741,9 @@ def tree_item_html(repo_id: str, name: str, node: dict, depth: int = 0) -> str:
             tree_item_html(repo_id, child_name, child_node, depth + 1)
             for child_name, child_node in sorted(children.items(), key=lambda kv: (0 if kv[1].get("kind") == "dir" else 1, natural_key(kv[0])))
         )
-        link = f"<a class='tree-doc-link' href='{doc_href(repo_id, doc)}' title='{title}'>目录介绍</a>" if doc else ""
+        doc_href_attr = doc_href(repo_id, doc) if doc else ""
         open_attr = " open" if depth <= 0 else ""
-        return f"<details class='tree-node tree-{kind} depth-{indent}'{open_attr}><summary title='{title}'><span class='tree-label'>{display_html}</span></summary>{link}<div class='tree-children'>{child_html}</div></details>"
+        return f"<details class='tree-node tree-{kind} depth-{indent}' data-doc='{doc_href_attr}'{open_attr}><summary class='tree-summary' title='{title}'><button class='tree-toggle' type='button' aria-label='展开或折叠'>▸</button><a class='tree-dir-link tree-label' href='{doc_href_attr or '#'}' title='{title}'>{display_html}</a></summary><div class='tree-children'>{child_html}</div></details>"
     if doc:
         return f"<a class='tree-leaf tree-{kind} depth-{indent}' href='{doc_href(repo_id, doc)}' title='{title}'><span class='tree-label'>{display_html}</span></a>"
     return f"<span class='tree-leaf tree-missing depth-{indent}' title='{title}'><span class='tree-label'>{display_html}</span></span>"
@@ -762,7 +811,7 @@ def repo_sidebar(repo_id: str, gen: Path) -> str:
 
 class Handler(BaseHTTPRequestHandler):
     def send_html(self, title, body, code=200, sidebar=""):
-        data=page(title,body,sidebar); self.send_response(code); self.send_header("Content-Type","text/html; charset=utf-8"); self.send_header("Content-Length",str(len(data))); self.end_headers(); self.wfile.write(data)
+        data=page(title,body,sidebar, getattr(self, "_current_repo_id", None)); self.send_response(code); self.send_header("Content-Type","text/html; charset=utf-8"); self.send_header("Content-Length",str(len(data))); self.end_headers(); self.wfile.write(data)
     def redirect(self, loc):
         self.send_response(303); self.send_header("Location",loc); self.end_headers()
     def do_GET(self):
@@ -770,7 +819,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=="/":
             with db() as con: repos=con.execute("SELECT * FROM repos ORDER BY updated_at DESC LIMIT 50").fetchall()
             repo_html="".join(f"<li class='repo-card'><a href='/repos/{r['repo_id']}/'><strong>{html.escape(r['repo_id'])}</strong></a> <span class='repo-id'>{html.escape(r['status'])}</span><br><small>{html.escape(r['source'])}</small></li>" for r in repos) or "<li class='repo-card'><span class='muted'>还没有生成过项目文档。</span></li>"
-            self.send_html("Repo Docs", f"<p class='side-kicker'>Code Learning Docs</p><h1>把陌生代码仓库变成中文学习路线</h1><p class='muted'>输入 GitHub/GitLab HTTPS URL 或 /data/project 下本地仓库，系统会过滤纯 MD/PDF/Office/TXT 文档仓库，只为真正的代码项目生成分段讲解。</p><form class='source-form' method='post' action='/submit'><input name='source' aria-label='仓库地址或本地路径' placeholder='https://github.com/org/repo 或 /data/project/lobehub'><button type='submit'>生成文档</button></form><h2>已有项目</h2><ul class='repo-list'>{repo_html}</ul>") ; return
+            self.send_html("Repo Docs", f"<p class='side-kicker'>Code Learning Docs</p><h1>万用文档</h1><p class='muted'>输入 GitHub/GitLab HTTPS URL 或 /data/project 下本地仓库，系统会过滤纯 MD/PDF/Office/TXT 文档仓库，只为真正的代码项目生成分段讲解。</p><form class='source-form' method='post' action='/submit'><input name='source' aria-label='仓库地址或本地路径' placeholder='https://github.com/org/repo 或 /data/project/lobehub'><button type='submit'>生成文档</button></form><h2>已有项目</h2><ul class='repo-list'>{repo_html}</ul>") ; return
         if path.startswith("/jobs/"):
             jid=path.split("/",2)[2]
             with db() as con: j=con.execute("SELECT * FROM jobs WHERE job_id=?",(jid,)).fetchone()
@@ -781,6 +830,7 @@ class Handler(BaseHTTPRequestHandler):
             parts=path.strip("/").split("/",2); repo_id=parts[1]; sub=parts[2] if len(parts)>2 else ""
             gen=BASE/"generated"/repo_id
             md = gen/(sub + ("" if sub.endswith(".md") else ".md")) if sub else gen/"index.md"
+            self._current_repo_id = repo_id
             if not md.exists(): self.send_html("404","<h1>文档不存在</h1>",404,repo_sidebar(repo_id,gen)); return
             self.send_html(md.name, render_md(md.read_text(encoding="utf-8",errors="replace")), sidebar=repo_sidebar(repo_id,gen)); return
         self.send_html("404","<h1>Not found</h1>",404)

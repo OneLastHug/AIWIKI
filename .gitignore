@@ -8,3 +8,5 @@ data/repos/*
 !data/repos/.gitkeep
 data/service.sqlite3
 data/service.sqlite3-*
+# Generated-doc regeneration backups
+data/generated/*.bak-*
