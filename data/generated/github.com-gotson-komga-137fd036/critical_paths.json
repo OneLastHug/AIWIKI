@@ -1,0 +1,153 @@
+{
+  "critical_directories": [
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga",
+      "priority": "P0",
+      "reason": "后端主代码目录，包含 Spring Boot 入口以及 domain、application、infrastructure、interfaces 等核心分层。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/domain",
+      "priority": "P0",
+      "reason": "领域模型、仓储接口和业务服务所在地，是理解 Library、Series、Book、Media、ReadProgress 等核心概念的入口。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/application/tasks",
+      "priority": "P0",
+      "reason": "后台任务系统核心目录，扫描、分析、元数据刷新、缩略图、hash、转换和索引等耗时工作都通过这里串联。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/interfaces/api/rest",
+      "priority": "P0",
+      "reason": "Web UI 主要 REST API 控制器集合，适合从请求入口理解后端业务调用链。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/infrastructure",
+      "priority": "P1",
+      "reason": "SQLite/jOOQ、Flyway、Lucene、媒体容器、元数据、图片、安全、Web 配置等技术实现集中在这里。"
+    },
+    {
+      "path": "komga/src/flyway",
+      "priority": "P1",
+      "reason": "数据库 schema 迁移目录，能帮助读者理解主数据库和任务数据库的表结构演进。"
+    },
+    {
+      "path": "komga-webui/src",
+      "priority": "P1",
+      "reason": "Vue 2 前端源码，包含入口、路由、插件、服务、视图、类型和国际化资源。"
+    },
+    {
+      "path": "komga-tray/src/main/kotlin",
+      "priority": "P2",
+      "reason": "桌面托盘包装层源码，说明桌面版如何复用后端应用并提供系统托盘菜单。"
+    }
+  ],
+  "critical_files": [
+    {
+      "path": "README.md",
+      "priority": "P0",
+      "reason": "项目定位和功能列表的主要证据，先读它能建立产品层面的整体认知。"
+    },
+    {
+      "path": "DEVELOPING.md",
+      "priority": "P0",
+      "reason": "说明本地开发要求、Spring profiles、三项目组织、常用 Gradle/npm 命令和 Docker 构建流程。"
+    },
+    {
+      "path": "settings.gradle",
+      "priority": "P0",
+      "reason": "确认 Gradle 多模块边界，仓库中 Gradle 管理 komga 和 komga-tray，前端由 npm 项目和后端构建任务接入。"
+    },
+    {
+      "path": "build.gradle.kts",
+      "priority": "P0",
+      "reason": "根构建配置，包含 Kotlin、ktlint、依赖更新、JReleaser、Gradle wrapper 和发行打包信号。"
+    },
+    {
+      "path": "komga/build.gradle.kts",
+      "priority": "P0",
+      "reason": "后端构建与依赖核心文件，能看到 Spring Boot、jOOQ、Flyway、Lucene、SQLite、媒体处理库和前端构建集成。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/Application.kt",
+      "priority": "P0",
+      "reason": "后端启动入口，展示 Spring Boot、调度启用、临时目录检查和 jOOQ 系统属性设置。"
+    },
+    {
+      "path": "komga/src/main/resources/application.yml",
+      "priority": "P0",
+      "reason": "默认运行配置，包含端口、配置目录、数据库、任务数据库、Lucene、Flyway、静态资源和外部配置导入。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/interfaces/api/rest/LibraryController.kt",
+      "priority": "P0",
+      "reason": "典型 REST 控制器，能看到认证、DTO 转换、library 生命周期调用和扫描任务提交。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/domain/service/LibraryLifecycle.kt",
+      "priority": "P0",
+      "reason": "典型领域服务，展示 library 创建、更新、删除、验证和任务触发逻辑。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/application/tasks/TaskHandler.kt",
+      "priority": "P0",
+      "reason": "后台任务分派中心，扫描、分析、缩略图、元数据、导入、转换、hash 和索引的调用链都在这里汇合。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/domain/service/FileSystemScanner.kt",
+      "priority": "P0",
+      "reason": "文件系统扫描实现，说明目录、书籍文件、oneshot、sidecar 和支持扩展名如何被识别。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/infrastructure/security/SecurityConfiguration.kt",
+      "priority": "P1",
+      "reason": "安全配置核心，定义 REST、OPDS、SSE、Kobo、KOReader、actuator 的认证授权链。"
+    },
+    {
+      "path": "komga/src/main/kotlin/org/gotson/komga/interfaces/sse/SseController.kt",
+      "priority": "P1",
+      "reason": "实时事件出口，展示 DomainEvent 如何转换为浏览器可消费的 SSE 消息和任务队列状态。"
+    },
+    {
+      "path": "komga-webui/package.json",
+      "priority": "P1",
+      "reason": "前端技术栈和 npm 脚本来源，确认 Vue 2、Vuetify、Vuex、Vue Router、Axios、TypeScript、Jest 等依赖。"
+    },
+    {
+      "path": "komga-webui/src/main.ts",
+      "priority": "P1",
+      "reason": "前端启动入口，展示插件、HTTP client、SSE、Vuex、Router、Vuetify 和 i18n 如何组装。"
+    },
+    {
+      "path": "komga-webui/src/router.ts",
+      "priority": "P1",
+      "reason": "前端页面和路由结构入口，适合理解 dashboard、library、series、book、reader、settings 等 UI 流程。"
+    },
+    {
+      "path": "komga-tray/src/main/kotlin/org/gotson/komga/DesktopApplication.kt",
+      "priority": "P2",
+      "reason": "桌面版启动入口，说明托盘模块如何继承并启动后端 Application。"
+    }
+  ],
+  "reading_order": [
+    {
+      "path": "index.md",
+      "title": "源码学习入口"
+    },
+    {
+      "path": "00-overview.md",
+      "title": "项目整体介绍"
+    },
+    {
+      "path": "01-tech-stack.md",
+      "title": "技术栈和运行环境"
+    },
+    {
+      "path": "02-architecture.md",
+      "title": "架构和模块边界"
+    },
+    {
+      "path": "03-runtime-flow.md",
+      "title": "运行时流程"
+    }
+  ]
+}

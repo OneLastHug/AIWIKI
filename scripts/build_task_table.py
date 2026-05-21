@@ -426,7 +426,7 @@ def main() -> int:
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--max-tasks", type=int, default=200)
+    parser.add_argument("--max-tasks", type=int, default=500)
     args = parser.parse_args()
 
     repo = args.repo.resolve()

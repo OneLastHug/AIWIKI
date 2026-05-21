@@ -52,7 +52,7 @@ def main() -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--concurrency", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
-    parser.add_argument("--max-tasks", type=int, default=200)
+    parser.add_argument("--max-tasks", type=int, default=500)
     parser.add_argument("--skip-overview", action="store_true")
     args = parser.parse_args()
 

@@ -67,6 +67,7 @@ def build_prompt(repo: Path, task: dict[str, Any]) -> str:
 - 具体文件或小目录要解释 import/export、调用方、核心逻辑和上下游关系。
 - 中文为主，路径、函数名、类名、包名、命令保留英文。
 - 如果证据不足，写“根据当前片段推断”，并说明依据。
+- 不要把本地源码路径写成 Markdown 链接；不要输出 `[path](/data/project/...:1)`、`[path](path.ts:1)` 这类引用。源码引用只写反引号代码路径，例如 `src/app/(backend)/api/version/route.ts`。多个路径之间用中文顿号、逗号或分号隔开，路径前后保留正常文字间隔，避免粘连。
 - 最终只输出 Markdown 正文，不要输出命令执行过程，不要寒暄。
 
 必须包含这些章节：

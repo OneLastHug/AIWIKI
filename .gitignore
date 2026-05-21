@@ -12,3 +12,6 @@ data/service.sqlite3-*
 data/generated/*.bak-*
 data/generated/*/codex_debug/
 data/generated/*/codex_failures.log
+
+# Generated runtime state databases
+data/generated/*/state.sqlite3*

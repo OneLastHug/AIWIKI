@@ -31,6 +31,7 @@ PORT = int(os.environ.get("RDS_PORT", "18081"))
 BASE = Path(os.environ.get("RDS_BASE") or (Path(__file__).resolve().parent / "data")).resolve()
 DB = BASE / "service.sqlite3"
 LOCAL_ROOT = Path("/data/project").resolve()
+ASSETS = (Path(__file__).resolve().parent / "assets").resolve()
 
 SKIP_DIRS = {".git", "node_modules", "dist", "build", "target", ".next", "coverage", ".venv", "venv", "__pycache__", ".idea", ".vscode"}
 SECRET_NAMES = {".env", ".env.local", ".npmrc", "id_rsa", "id_dsa", "id_ed25519", "credentials.json"}
@@ -456,27 +457,97 @@ def worker() -> None:
             job_q.task_done()
 
 
+def _render_inline_text(text: str) -> str:
+    text = html.escape(text)
+    return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+
+
+def _find_balanced(text: str, start: int, opener: str, closer: str) -> int:
+    depth = 0
+    i = start
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == opener:
+            depth += 1
+        elif ch == closer:
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+
+def _is_local_source_href(href: str) -> bool:
+    href = (href or "").strip()
+    if not href:
+        return True
+    if href.startswith(("#", "/repos/")):
+        return False
+    if re.match(r"^[a-z][a-z0-9+.-]*://", href, flags=re.I):
+        return False
+    return True
+
+
 def md_inline(s: str) -> str:
-    s = html.escape(s)
-    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
-    s = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", s)
-    s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", lambda m: f'<a href="{html.escape(m.group(2))}">{m.group(1)}</a>', s)
-    return s
+    out: list[str] = []
+    buf: list[str] = []
+
+    def flush_text() -> None:
+        if buf:
+            out.append(_render_inline_text("".join(buf)))
+            buf.clear()
+
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "`":
+            end = s.find("`", i + 1)
+            if end != -1:
+                flush_text()
+                out.append("<code>" + html.escape(s[i + 1:end]) + "</code>")
+                i = end + 1
+                continue
+        if ch == "[":
+            label_end = _find_balanced(s, i, "[", "]")
+            if label_end != -1 and label_end + 1 < len(s) and s[label_end + 1] == "(":
+                href_end = _find_balanced(s, label_end + 1, "(", ")")
+                if href_end != -1:
+                    flush_text()
+                    label = s[i + 1:label_end]
+                    href = s[label_end + 2:href_end].strip()
+                    if _is_local_source_href(href):
+                        out.append("<code>" + html.escape(label) + "</code>")
+                    else:
+                        out.append(f'<a href="{html.escape(href, quote=True)}">{_render_inline_text(label)}</a>')
+                    i = href_end + 1
+                    continue
+        buf.append(ch)
+        i += 1
+    flush_text()
+    return "".join(out)
 
 
 def render_md(text: str) -> str:
-    out=[]; code=[]; in_code=False; code_lang=""; list_type=None; quote=[]; para=[]
+    out=[]; code=[]; in_code=False; code_lang=""; code_in_list=False; list_type=None; quote=[]; para=[]; last_li_open=False; pending_list_blank=False
 
     def flush_para():
         nonlocal para
         if para:
-            out.append("<p>" + md_inline(" ".join(p.strip() for p in para)) + "</p>")
+            raw = " ".join(p.strip() for p in para)
+            cls = " class='lead-code'" if raw.lstrip().startswith("`") else ""
+            out.append("<p" + cls + ">" + md_inline(raw) + "</p>")
             para=[]
 
     def close_list():
-        nonlocal list_type
+        nonlocal list_type, last_li_open, pending_list_blank
+        if last_li_open:
+            out.append("</li>"); last_li_open=False
         if list_type:
             out.append(f"</{list_type}>"); list_type=None
+        pending_list_blank=False
 
     def close_quote():
         nonlocal quote
@@ -492,11 +563,21 @@ def render_md(text: str) -> str:
                 parts.append("<p>" + md_inline(" ".join(block)) + "</p>")
             out.append("<blockquote>" + "\n".join(parts) + "</blockquote>"); quote=[]
 
-    def open_list(kind):
+    def open_list(kind, start=None):
         nonlocal list_type
         close_quote(); flush_para()
         if list_type != kind:
-            close_list(); out.append(f"<{kind}>"); list_type=kind
+            close_list()
+            attr=f" start='{int(start)}'" if kind == "ol" and start else ""
+            out.append(f"<{kind}{attr}>"); list_type=kind
+
+    def add_list_item(kind, depth, content, start=None):
+        nonlocal last_li_open, pending_list_blank
+        open_list(kind, start)
+        if last_li_open:
+            out.append("</li>")
+        out.append(f"<li class='depth-{depth}'>"+content)
+        last_li_open=True; pending_list_blank=False
 
     def render_table(rows):
         def split_row(row):
@@ -516,18 +597,24 @@ def render_md(text: str) -> str:
         line=lines[i]
         stripped=line.strip()
         if stripped.startswith("```"):
-            close_quote(); flush_para(); close_list()
+            close_quote(); flush_para()
             if not in_code:
+                code_in_list=bool(list_type and last_li_open and (line[:1].isspace() or pending_list_blank))
+                if not code_in_list:
+                    close_list()
                 in_code=True; code=[]; code_lang=stripped[3:].strip().split()[0] if stripped[3:].strip() else ""
             else:
                 cls=f' class="language-{html.escape(code_lang)}"' if code_lang else ""
                 out.append("<pre><code"+cls+">"+html.escape("\n".join(code))+"</code></pre>")
-                in_code=False; code_lang=""
+                in_code=False; code_lang=""; code_in_list=False; pending_list_blank=False
             i+=1; continue
         if in_code:
-            code.append(line); i+=1; continue
+            code.append(line[3:] if code_in_list and line.startswith("   ") else line); i+=1; continue
         if not stripped:
-            close_quote(); flush_para(); close_list(); i+=1; continue
+            close_quote(); flush_para()
+            if list_type and last_li_open:
+                pending_list_blank=True; i+=1; continue
+            close_list(); i+=1; continue
         if re.match(r"^[-*_]\s*[-*_]\s*[-*_][\s*_=-]*$", stripped):
             close_quote(); flush_para(); close_list(); out.append("<hr>"); i+=1; continue
         if stripped.startswith("|") and i+1 < len(lines) and re.match(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$", lines[i+1]):
@@ -542,10 +629,19 @@ def render_md(text: str) -> str:
         close_quote()
         m=re.match(r"^(#{1,6})\s+(.*)$", line)
         if m:
-            flush_para(); close_list(); n=len(m.group(1)); out.append(f"<h{n}>{md_inline(m.group(2))}</h{n}>"); i+=1; continue
+            flush_para(); close_list(); n=len(m.group(1)); heading=m.group(2).strip()
+            title_parts=re.match(r"^(文件|目录)[:：]\s*(.+)$", heading)
+            if n == 1 and title_parts:
+                kind=html.escape(title_parts.group(1))
+                path_text=html.escape(title_parts.group(2))
+                out.append(f"<h1 class='doc-title'><span class='doc-title-kind'>{kind}</span><span class='doc-title-path'>{path_text}</span></h1>")
+            else:
+                out.append(f"<h{n}>{md_inline(heading)}</h{n}>")
+            i+=1; continue
+        if list_type and pending_list_blank and re.match(r"^\s{2,}\S", line):
+            out.append("<p>" + md_inline(line.strip()) + "</p>"); pending_list_blank=False; i+=1; continue
         m=re.match(r"^(\s*)[-*]\s+(.*)$", line)
         if m:
-            open_list('ul')
             depth=min(5, len(m.group(1).replace("\t", "    ")) // 2)
             item=m.group(2)
             task=re.match(r"^\[( |x|X)\]\s+(.*)$", item)
@@ -554,12 +650,15 @@ def render_md(text: str) -> str:
                 item=f"<input type='checkbox' disabled{checked}> " + md_inline(task.group(2))
             else:
                 item=md_inline(item)
-            out.append(f"<li class='depth-{depth}'>"+item+"</li>"); i+=1; continue
-        m=re.match(r"^(\s*)\d+[.)]\s+(.*)$", line)
+            add_list_item('ul', depth, item); i+=1; continue
+        m=re.match(r"^(\s*)(\d+)[.)]\s+(.*)$", line)
         if m:
-            open_list('ol')
             depth=min(5, len(m.group(1).replace("\t", "    ")) // 2)
-            out.append(f"<li class='depth-{depth}'>"+md_inline(m.group(2))+"</li>"); i+=1; continue
+            add_list_item('ol', depth, md_inline(m.group(3)), int(m.group(2))); i+=1; continue
+        if list_type and last_li_open and (not pending_list_blank or line[:1].isspace()):
+            out.append("<p>" + md_inline(line.strip()) + "</p>"); i+=1; continue
+        if list_type and pending_list_blank:
+            close_list()
         para.append(line); i+=1
     close_quote(); flush_para(); close_list()
     if in_code: out.append("<pre><code>"+html.escape("\n".join(code))+"</code></pre>")
@@ -633,26 +732,29 @@ def page(title: str, body: str, sidebar: str = "", repo_id: str | None = None) -
         "</aside>"
     ) if has_sidebar else ""
     layout_class = "layout has-sidebar" if has_sidebar else "layout no-sidebar"
-    return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0f12"><title>{escaped_title}</title>
+    return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><title>{escaped_title}</title>
 <style>
-:root{{--bg:#090b0e;--top:#0d1116;--panel:#0f141a;--panel-2:#141a20;--card:#0c1015;--text:#f3f6f8;--text-2:#c8d0d7;--muted:#89939d;--border:rgba(255,255,255,.08);--border-2:rgba(255,255,255,.13);--accent:#c5f74f;--accent-2:#8ee65f;--link:#58a6ff;--code-bg:#11161d;--quote:#1b222a;--header-h:58px;--sidebar-w:320px;--right-w:248px;color-scheme:dark}}
-:root[data-theme='light']{{--bg:#fff;--top:#fff;--panel:#fafafa;--panel-2:#f5f5f5;--card:#fff;--text:#101214;--text-2:#343a40;--muted:#6b7280;--border:rgba(0,0,0,.08);--border-2:rgba(0,0,0,.13);--accent:#93d500;--accent-2:#13c985;--link:#0969da;--code-bg:#f6f8fa;--quote:#f5fff0;color-scheme:light}}
-*{{box-sizing:border-box}}html{{font-size:16px;scroll-padding-top:calc(var(--header-h) + 18px)}}body{{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;line-height:1.7;overflow-x:hidden;-webkit-font-smoothing:antialiased}}a{{color:inherit;text-decoration:none;overflow-wrap:anywhere}}a:hover{{color:var(--accent)}}img,table{{max-width:100%}}p,li,.muted,.repo-id,.repo-link,summary,small{{overflow-wrap:anywhere;word-break:break-word}}::selection{{background:rgba(197,247,79,.32)}}
-.adbar{{height:32px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#111820;color:#d6dde3;border-bottom:1px solid var(--border);font-size:13px}}:root[data-theme='light'] .adbar{{background:#f7f9fb;color:#4b5563}}.adbar b{{color:var(--accent);font-weight:650}}
-.topbar{{position:sticky;top:0;z-index:60;height:var(--header-h);display:grid;grid-template-columns:auto minmax(120px,520px) auto;align-items:center;gap:18px;padding:0 22px;background:rgba(13,17,22,.9);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}}:root[data-theme='light'] .topbar{{background:rgba(255,255,255,.9)}}.brand{{display:flex;align-items:center;gap:12px;min-width:0}}.brand-mark{{position:relative;width:30px;height:24px;display:inline-block}}.brand-mark:before,.brand-mark:after{{content:'';position:absolute;width:20px;height:7px;border-radius:99px;background:var(--accent);transform:skewX(-22deg)}}.brand-mark:before{{left:0;top:2px}}.brand-mark:after{{right:0;bottom:2px}}.brand strong{{font-size:18px;font-weight:740;letter-spacing:-.04em}}.brand span{{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}}.brand span span{{padding-left:10px;border-left:1px solid var(--border)}}.search{{height:36px;border:1px solid var(--border);background:var(--panel);border-radius:10px;display:flex;align-items:center;gap:10px;color:var(--muted);padding:0 10px 0 12px;font-size:14px}}.search input{{flex:1;border:0;background:transparent;color:var(--text);font:inherit;min-width:80px;outline:0;padding:0}}.search input::placeholder{{color:var(--muted)}}.search kbd{{margin-left:auto;border:1px solid var(--border-2);border-radius:6px;padding:1px 6px;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg)}}.top-actions{{display:flex;gap:9px;align-items:center;justify-content:flex-end}}.top-pill,.theme-toggle{{height:36px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:10px;padding:0 12px;font-size:13px;font-weight:570;background:var(--panel);color:var(--text-2);cursor:pointer}}.top-pill.primary{{background:var(--accent);color:#101400;border-color:transparent}}.theme-toggle{{width:38px;padding:0;font-size:17px}}.theme-toggle .sun{{display:none}}:root[data-theme='light'] .theme-toggle .sun{{display:inline}}:root[data-theme='light'] .theme-toggle .moon{{display:none}}
-.layout{{display:grid;min-height:calc(100vh - var(--header-h) - 32px)}}.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr) var(--right-w)}}.layout.no-sidebar{{grid-template-columns:minmax(0,1fr)}}.sidebar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;background:var(--bg);border-right:1px solid var(--border);padding:24px 18px 34px;resize:horizontal;min-width:240px;max-width:620px;width:var(--sidebar-w);scrollbar-gutter:stable}}.sidebar-panel{{display:grid;gap:12px}}.side-kicker,.right-label{{font:700 11px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}}.sidebar-title{{margin:0 0 8px;font-size:16px;line-height:1.25;letter-spacing:-.02em}}.repo-id{{display:inline-flex;width:fit-content;max-width:100%;padding:5px 9px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:8px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-size:12px;font-weight:650}}
-.repo-nav{{display:block}}.nav-section{{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}}.nav-section:last-child{{border-bottom:0;margin-bottom:0;padding-bottom:0}}.nav-section-title{{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}}.overview-link{{display:block;padding:8px 10px;border-radius:8px;color:var(--text-2);font-size:13px;line-height:1.45}}.overview-link:hover{{background:var(--panel);color:var(--text);text-decoration:none}}.repo-tree{{display:grid;gap:4px}}.tree-node,.tree-leaf{{display:block;min-width:0}}.tree-node>summary,.tree-leaf{{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;color:var(--text-2);font-size:13px;line-height:1.45}}.tree-node>summary{{cursor:pointer;list-style:none;user-select:none}}.tree-node>summary::-webkit-details-marker{{display:none}}.tree-summary:focus,.tree-summary:focus-visible,.tree-toggle:focus,.tree-toggle:focus-visible,.tree-toggle:active,.tree-dir-link:focus,.tree-dir-link:focus-visible{{outline:none!important;box-shadow:none!important;background:transparent!important}}.tree-toggle{{flex:0 0 auto;width:18px;height:18px;padding:0;border:0;appearance:none;-webkit-appearance:none;border-radius:0;background:transparent!important;color:var(--muted);cursor:pointer;font:700 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:inline-flex;align-items:center;justify-content:center;outline:none!important;box-shadow:none!important;-webkit-tap-highlight-color:transparent}}.tree-node[open] .tree-toggle{{transform:rotate(90deg)}}.tree-dir-link{{flex:1 1 auto;min-width:0;color:inherit}}.tree-node>summary:hover,.tree-leaf:hover,.overview-link:hover{{background:var(--panel);color:var(--text);text-decoration:none}}.is-active{{background:transparent!important;color:var(--accent)!important;border-color:transparent!important;box-shadow:none!important;font-weight:700}}.tree-children{{display:grid;gap:3px;margin-left:13px;padding-left:10px;border-left:1px solid var(--border)}}.tree-label{{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.tree-missing{{opacity:.7}}
-main{{min-width:0;padding:34px 38px 74px;background:var(--bg)}}.content-wrap{{width:min(100%,860px);margin:0 auto}}.card{{min-width:0;background:transparent;border:0;border-radius:0;padding:0;box-shadow:none}}.layout.no-sidebar main{{padding-top:58px}}.layout.no-sidebar .content-wrap{{width:min(100%,980px)}}.layout.no-sidebar .card{{padding:0}}
-.card h1{{font-size:clamp(2.45rem,4.8vw,4.7rem);line-height:1.02;letter-spacing:-.065em;margin:0 0 18px;color:var(--text);font-weight:780}}.layout.has-sidebar .card h1{{font-size:clamp(2.25rem,4vw,4.15rem)}}.card h2{{font-size:clamp(1.45rem,2vw,2rem);line-height:1.18;letter-spacing:-.035em;margin:2.15em 0 .72em;color:var(--text);font-weight:740}}.card h3{{font-size:clamp(1.14rem,1.35vw,1.36rem);line-height:1.28;letter-spacing:-.02em;margin:1.75em 0 .55em;font-weight:700}}.card h4,.card h5,.card h6{{margin:1.35em 0 .45em;line-height:1.3}}.card p{{margin:0 0 1.05em;color:var(--text-2);font-size:16px}}.card ul,.card ol{{padding-left:1.35rem;margin:0 0 1.15em;color:var(--text-2)}}.card li{{margin:.36em 0;padding-left:.08em}}.card strong{{font-weight:760;color:var(--text)}}.card a{{color:var(--link);text-decoration:none}}.card a:hover{{color:var(--accent);text-decoration:underline;text-underline-offset:3px}}.muted{{color:var(--muted)!important}}small{{color:var(--muted);font-size:13px}}
-.card blockquote{{margin:1.35em 0;padding:14px 18px;border-left:3px solid color-mix(in srgb,var(--text) 45%,transparent);background:var(--quote);border-radius:0 12px 12px 0;color:var(--text-2)}}pre{{max-width:100%;overflow-x:auto;overflow-y:hidden;background:var(--code-bg);border:1px solid var(--border);padding:16px 18px;border-radius:12px;margin:1.25em 0;color:var(--text)}}pre code{{display:block;min-width:max-content;background:none;border:0;padding:0;border-radius:0;white-space:pre;font:13px/1.68 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;color:var(--text-2)}}code{{background:var(--code-bg);border:1px solid var(--border);padding:.13em .38em;border-radius:6px;font:0.9em/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text);overflow-wrap:anywhere}}
-.source-form{{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:30px 0 34px;padding:7px;border:1px solid var(--border);border-radius:12px;background:var(--panel);max-width:820px}}input{{flex:1 1 360px;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:11px 13px}}input::placeholder{{color:var(--muted)}}button{{flex:0 0 auto;border:0;border-radius:9px;background:var(--accent);color:#111700;font:750 14px/1.4 inherit;padding:11px 17px;cursor:pointer}}button:hover{{filter:brightness(.95)}}button:focus,input:focus,.theme-toggle:focus{{outline:2px solid color-mix(in srgb,var(--accent) 50%,transparent);outline-offset:2px}}
-.card > ul:first-of-type,.repo-list{{display:grid;gap:10px;list-style:none;padding:0;margin:16px 0}}.card > ul:first-of-type li,.repo-card{{border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--panel)}}.repo-card:hover{{border-color:var(--border-2)}}
-.rightbar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;border-left:1px solid var(--border);padding:24px 18px;background:var(--bg)}}.right-card{{border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:14px;margin-bottom:14px;color:var(--text-2)}}.right-card p{{font-size:13px;line-height:1.55;margin:.55em 0 0;color:var(--muted)}}.page-toc{{display:grid;gap:6px}}.toc-link{{display:block;padding:6px 8px;border-radius:8px;color:var(--text-2);font-size:12px;line-height:1.35;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.toc-link:hover{{background:var(--panel);color:var(--text)}}.toc-lv-h1{{padding-left:0}}.toc-lv-h2{{padding-left:10px}}.toc-lv-h3{{padding-left:18px}}.progress-card strong{{display:block;margin:8px 0;font-size:22px}}.progress{{height:8px;background:var(--panel-2);border-radius:99px;overflow:hidden;margin:8px 0}}.progress span{{display:block;width:78%;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:inherit}}
-.mobile-nav{{display:none;position:sticky;top:var(--header-h);z-index:45;padding:10px 12px;background:var(--bg);border-bottom:1px solid var(--border)}}.mobile-nav summary{{display:flex;align-items:center;justify-content:space-between;list-style:none;cursor:pointer;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);font-weight:700}}.mobile-nav summary::-webkit-details-marker{{display:none}}.mobile-nav[open] .chevron{{transform:rotate(180deg)}}.chevron{{transition:transform .16s ease;color:var(--muted)}}.mobile-nav-body{{margin-top:10px;max-height:68vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}}
+@import url('/assets/fonts/noto-sans-sc-400.css');
+@import url('/assets/fonts/noto-sans-sc-700.css');
+:root{{--bg:#eef2f6;--top:#fff;--panel:#fff;--panel-2:#f7f9fb;--card:#fff;--section-bg:#fbfdfb;--text:#1f2933;--text-2:#344054;--muted:#73808c;--border:#dde4eb;--border-2:#c6d0da;--accent:#169957;--accent-2:#30b36a;--link:#1769aa;--code-bg:#f7f9fc;--quote:#f2faf5;--soft:#f8fafc;--header-h:56px;--sidebar-w:300px;--right-w:260px;color-scheme:light}}
+:root[data-theme='dark']{{--bg:#111418;--top:#151a20;--panel:#171d24;--panel-2:#1d242c;--card:#151a20;--section-bg:#151d18;--text:#eef2f5;--text-2:#cbd3db;--muted:#8f9aa6;--border:rgba(255,255,255,.1);--border-2:rgba(255,255,255,.17);--accent:#69db7c;--accent-2:#38d9a9;--link:#74c0fc;--code-bg:#10151b;--quote:#172219;--soft:#131920;color-scheme:dark}}
+*{{box-sizing:border-box}}html{{font-size:16px;scroll-padding-top:calc(var(--header-h) + 18px)}}body{{margin:0;background:var(--bg);color:var(--text);font-family:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;line-height:1.85;overflow-x:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}}a{{color:inherit;text-decoration:none;overflow-wrap:anywhere}}a:hover{{color:var(--accent)}}img,table{{max-width:100%}}p,li,.muted,.repo-id,.repo-link,summary,small{{overflow-wrap:anywhere;word-break:break-word}}::selection{{background:rgba(31,157,85,.18)}}
+.adbar{{height:34px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#f8fafc;color:#56616d;border-bottom:1px solid var(--border);font-size:13px}}:root[data-theme='dark'] .adbar{{background:#111820;color:#d6dde3}}.adbar b{{color:var(--accent);font-weight:650}}
+.topbar{{position:sticky;top:0;z-index:60;height:var(--header-h);display:grid;grid-template-columns:auto minmax(120px,520px) auto;align-items:center;gap:18px;padding:0 22px;background:rgba(255,255,255,.94);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}}:root[data-theme='dark'] .topbar{{background:rgba(21,26,32,.92)}}.brand{{display:flex;align-items:center;gap:12px;min-width:0}}.brand-mark{{position:relative;width:28px;height:22px;display:inline-block}}.brand-mark:before,.brand-mark:after{{content:'';position:absolute;width:19px;height:6px;border-radius:99px;background:var(--accent);transform:skewX(-22deg)}}.brand-mark:before{{left:0;top:2px}}.brand-mark:after{{right:0;bottom:2px}}.brand strong{{font-size:18px;font-weight:720}}.brand span{{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}}.brand span span{{padding-left:10px;border-left:1px solid var(--border)}}.search{{height:36px;border:1px solid var(--border);background:var(--panel-2);border-radius:6px;display:flex;align-items:center;gap:10px;color:var(--muted);padding:0 10px 0 12px;font-size:14px}}.search input{{flex:1;border:0;background:transparent;color:var(--text);font:inherit;min-width:80px;outline:0;padding:0}}.search input::placeholder{{color:var(--muted)}}.search kbd{{margin-left:auto;border:1px solid var(--border-2);border-radius:4px;padding:1px 6px;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel)}}.top-actions{{display:flex;gap:9px;align-items:center;justify-content:flex-end}}.top-pill,.theme-toggle{{height:36px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:6px;padding:0 12px;font-size:13px;font-weight:570;background:var(--panel);color:var(--text-2);cursor:pointer}}.top-pill.primary{{background:var(--accent);color:#fff;border-color:transparent}}.theme-toggle{{width:38px;padding:0;font-size:17px}}.theme-toggle .moon{{display:none}}:root[data-theme='dark'] .theme-toggle .moon{{display:inline}}:root[data-theme='dark'] .theme-toggle .sun{{display:none}}
+.layout{{display:grid;min-height:calc(100vh - var(--header-h) - 34px)}}.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr) var(--right-w)}}.layout.no-sidebar{{grid-template-columns:minmax(0,1fr)}}.sidebar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;background:var(--panel);border-right:1px solid var(--border);padding:22px 16px 34px;resize:horizontal;min-width:240px;max-width:620px;width:var(--sidebar-w);scrollbar-gutter:stable}}.sidebar-panel{{display:grid;gap:12px}}.side-kicker,.right-label{{font:700 11px/1.35 'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}}.sidebar-title{{margin:0 0 8px;font-size:17px;line-height:1.25}}.repo-id{{display:inline-flex;width:fit-content;max-width:100%;padding:5px 9px;border:1px solid color-mix(in srgb,var(--accent) 42%,transparent);border-radius:5px;background:color-mix(in srgb,var(--accent) 9%,transparent);color:var(--accent);font-size:12px;font-weight:650}}
+.repo-nav{{display:block}}.nav-section{{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}}.nav-section:last-child{{border-bottom:0;margin-bottom:0;padding-bottom:0}}.nav-section-title{{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}}.overview-link{{display:block;padding:7px 9px;border-radius:5px;color:var(--text-2);font-size:13px;line-height:1.5}}.overview-link:hover{{background:var(--panel-2);color:var(--text);text-decoration:none}}.repo-tree{{display:grid;gap:3px}}.tree-node,.tree-leaf{{display:block;min-width:0}}.tree-node>summary,.tree-leaf{{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:5px;color:var(--text-2);font-size:13px;line-height:1.48}}.tree-node>summary{{cursor:pointer;list-style:none;user-select:none}}.tree-node>summary::-webkit-details-marker{{display:none}}.tree-summary:focus,.tree-summary:focus-visible,.tree-toggle:focus,.tree-toggle:focus-visible,.tree-toggle:active,.tree-dir-link:focus,.tree-dir-link:focus-visible{{outline:none!important;box-shadow:none!important;background:transparent!important}}.tree-toggle,.tree-toggle-spacer{{flex:0 0 auto;width:18px;height:18px;padding:0;border:0;appearance:none;-webkit-appearance:none;border-radius:0;background:transparent!important;color:var(--muted);cursor:pointer;font:700 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:inline-flex;align-items:center;justify-content:center;outline:none!important;box-shadow:none!important;-webkit-tap-highlight-color:transparent}}.tree-toggle-spacer{{cursor:default;visibility:hidden}}.tree-node[open] .tree-toggle{{transform:rotate(90deg)}}.tree-dir-link{{flex:1 1 auto;min-width:0;color:inherit}}.tree-node>summary:hover,.tree-leaf:hover,.overview-link:hover{{background:var(--panel-2);color:var(--text);text-decoration:none}}.is-active{{background:color-mix(in srgb,var(--accent) 10%,transparent)!important;color:var(--accent)!important;border-color:transparent!important;box-shadow:none!important;font-weight:700}}.tree-children{{display:grid;gap:2px;margin-left:13px;padding-left:10px;border-left:1px solid var(--border)}}.tree-label{{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.tree-missing{{opacity:.7}}
+main{{min-width:0;padding:34px 42px 84px;background:linear-gradient(180deg,#f7f9fb 0,#eef2f6 340px,var(--bg) 100%)}}.content-wrap{{width:min(100%,820px);margin:0 auto}}.card{{min-width:0;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:50px 58px 64px;box-shadow:0 8px 24px rgba(16,24,40,.06)}}:root[data-theme='dark'] main{{background:var(--bg)}}:root[data-theme='dark'] .card{{box-shadow:none}}.layout.no-sidebar main{{padding-top:58px}}.layout.no-sidebar .content-wrap{{width:min(100%,920px)}}.layout.no-sidebar .card{{padding:50px 58px 64px}}
+.card h1{{font-size:34px;line-height:1.34;margin:0 0 30px;padding-bottom:24px;border-bottom:1px solid var(--border);color:var(--text);font-weight:760;overflow-wrap:anywhere;word-break:break-word}}.layout.has-sidebar .card h1{{font-size:34px}}.card h2{{position:relative;font-size:24px;line-height:1.48;margin:54px 0 22px;padding:10px 0 12px 18px;border-bottom:1px solid var(--border);color:var(--text);font-weight:760;overflow-wrap:anywhere}}.card h2:before{{content:'';position:absolute;left:0;top:15px;width:5px;height:1.28em;border-radius:99px;background:var(--accent)}}.card h3{{position:relative;font-size:20px;line-height:1.58;margin:38px 0 16px;padding-left:15px;color:var(--text);font-weight:730;overflow-wrap:anywhere}}.card h3:before{{content:'';position:absolute;left:0;top:.78em;width:6px;height:6px;border-radius:50%;background:var(--accent)}}.card h4,.card h5,.card h6{{margin:28px 0 12px;line-height:1.5;color:var(--text);font-weight:700;overflow-wrap:anywhere}}.card p{{margin:0 0 22px;color:var(--text-2);font-size:16px;line-height:2.04}}.card>p:not(.lead-code){{text-indent:2em}}.card>p.lead-code{{text-indent:0;padding-left:2em}}.card p+p{{margin-top:2px}}.card ul,.card ol{{padding-left:1.75rem;margin:0 0 24px;color:var(--text-2)}}.card>ul,.card>ol{{margin:8px 0 30px;padding:16px 22px 16px 2.55rem;border-left:3px solid color-mix(in srgb,var(--accent) 54%,transparent);border-radius:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 8%,transparent),var(--section-bg) 42%)}}.card li{{margin:9px 0;padding-left:.22em;line-height:1.9}}.card li p{{margin:8px 0 0;text-indent:0;line-height:1.85}}.card li.depth-1{{margin-left:1.25rem}}.card li.depth-2{{margin-left:2.5rem}}.card li.depth-3{{margin-left:3.75rem}}.card li.depth-4,.card li.depth-5{{margin-left:5rem}}.card li::marker{{color:var(--accent);font-weight:800}}.card li input[type='checkbox']{{margin-right:8px;vertical-align:-1px}}.card strong{{font-weight:760;color:var(--text)}}.card a{{color:var(--link);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--link) 24%,transparent)}}.card a:hover{{color:var(--accent);border-bottom-color:var(--accent)}}.muted{{color:var(--muted)!important}}small{{color:var(--muted);font-size:13px}}
+.card h1.doc-title{{font-size:inherit;line-height:1.25;margin-bottom:36px}}.doc-title-kind{{display:inline-flex;align-items:center;margin:0 0 13px;padding:3px 9px;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:999px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);font-size:13px;font-weight:760;line-height:1.35}}.doc-title-path{{display:block;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:30px;font-weight:750;line-height:1.3;overflow-wrap:anywhere;word-break:break-word}}
+.card blockquote{{margin:28px 0;padding:17px 20px;border-left:4px solid var(--accent);background:var(--quote);border-radius:0 6px 6px 0;color:var(--text-2)}}.card blockquote p{{margin:0 0 10px;text-indent:0}}.card blockquote p:last-child{{margin-bottom:0}}hr{{height:1px;border:0;background:var(--border);margin:38px 0}}pre{{max-width:100%;overflow-x:auto;overflow-y:hidden;background:var(--code-bg);border:1px solid var(--border);padding:18px 20px;border-radius:6px;margin:24px 0 30px;color:var(--text)}}pre code{{display:block;min-width:max-content;background:none;border:0;padding:0;border-radius:0;white-space:pre;font:13px/1.72 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;color:var(--text-2)}}code{{background:var(--code-bg);border:1px solid var(--border);padding:.12em .38em;border-radius:4px;font:0.9em/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#c7254e;overflow-wrap:anywhere;word-break:break-word;-webkit-box-decoration-break:clone;box-decoration-break:clone}}:root[data-theme='dark'] code{{color:#ffb3c1}}.table-wrap{{max-width:100%;overflow:auto;margin:24px 0 30px;border:1px solid var(--border);border-radius:6px}}table{{width:100%;border-collapse:collapse;background:var(--panel)}}th,td{{padding:11px 13px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-size:14px;line-height:1.6;text-align:left;vertical-align:top}}th:last-child,td:last-child{{border-right:0}}tr:last-child td{{border-bottom:0}}th{{background:var(--panel-2);color:var(--text);font-weight:700}}
+.source-form{{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:30px 0 34px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel);max-width:820px}}input{{flex:1 1 360px;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:11px 13px}}input::placeholder{{color:var(--muted)}}button{{flex:0 0 auto;border:0;border-radius:5px;background:var(--accent);color:#fff;font:700 14px/1.4 inherit;padding:11px 17px;cursor:pointer}}button:hover{{filter:brightness(.96)}}button:focus,input:focus,.theme-toggle:focus{{outline:2px solid color-mix(in srgb,var(--accent) 42%,transparent);outline-offset:2px}}
+.repo-list{{display:grid;gap:10px;list-style:none;padding:0;margin:16px 0}}.repo-card{{border:1px solid var(--border);border-radius:4px;padding:14px 16px;background:var(--panel)}}.repo-card:hover{{border-color:var(--border-2)}}
+.rightbar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;border-left:1px solid var(--border);padding:22px 16px;background:var(--panel)}}.right-card{{border:1px solid var(--border);border-radius:4px;background:var(--soft);padding:14px;margin-bottom:14px;color:var(--text-2)}}.right-card p{{font-size:13px;line-height:1.65;margin:.55em 0 0;color:var(--muted)}}.page-toc{{display:grid;gap:4px}}.toc-link{{display:block;padding:6px 8px;border-radius:4px;color:var(--text-2);font-size:12px;line-height:1.45;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:2px solid transparent}}.toc-link:hover{{background:var(--panel);color:var(--text);border-left-color:var(--accent)}}.toc-lv-h1{{padding-left:8px}}.toc-lv-h2{{padding-left:18px}}.toc-lv-h3{{padding-left:28px}}.progress-card strong{{display:block;margin:8px 0;font-size:22px}}.progress{{height:8px;background:var(--panel-2);border-radius:99px;overflow:hidden;margin:8px 0}}.progress span{{display:block;width:78%;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:inherit}}
+.mobile-nav{{display:none;position:sticky;top:var(--header-h);z-index:45;padding:10px 12px;background:var(--bg);border-bottom:1px solid var(--border)}}.mobile-nav summary{{display:flex;align-items:center;justify-content:space-between;list-style:none;cursor:pointer;padding:10px 12px;border-radius:5px;border:1px solid var(--border);background:var(--panel);font-weight:700}}.mobile-nav summary::-webkit-details-marker{{display:none}}.mobile-nav[open] .chevron{{transform:rotate(180deg)}}.chevron{{transition:transform .16s ease;color:var(--muted)}}.mobile-nav-body{{margin-top:10px;max-height:68vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:14px}}
 @media(max-width:1180px){{.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr)}}.rightbar{{display:none}}.topbar{{grid-template-columns:auto minmax(120px,1fr) auto}}}}
-@media(max-width:860px){{:root{{--header-h:56px}}.adbar{{display:none}}.topbar{{grid-template-columns:auto auto;padding:0 14px}}.search{{display:none}}.brand span span{{display:none}}.top-actions .top-pill{{display:none}}.mobile-nav{{display:block}}.layout.has-sidebar{{grid-template-columns:minmax(0,1fr)}}.sidebar{{display:none}}main{{padding:22px 16px 48px}}.content-wrap{{width:100%}}.card h1{{font-size:2.45rem;letter-spacing:-.055em}}.card h2{{font-size:1.55rem;margin-top:1.8em}}.card h3{{font-size:1.2rem}}.card p,.card li{{font-size:15.5px}}.source-form{{display:grid;border-radius:12px;padding:9px;margin:24px 0}}input{{width:100%;flex:auto;padding:11px}}button{{width:100%;padding:12px 16px}}pre{{border-radius:10px;padding:13px 14px}}}}
+@media(max-width:860px){{:root{{--header-h:56px}}.adbar{{display:none}}.topbar{{grid-template-columns:auto auto;padding:0 14px}}.search{{display:none}}.brand span span{{display:none}}.top-actions .top-pill{{display:none}}.mobile-nav{{display:block}}.layout.has-sidebar{{grid-template-columns:minmax(0,1fr)}}.sidebar{{display:none}}main{{padding:14px 12px 50px;background:var(--bg)}}.content-wrap{{width:100%}}.card,.layout.no-sidebar .card{{padding:28px 18px 38px;border-radius:6px}}.card h1{{font-size:27px;line-height:1.36;margin-bottom:26px}}.doc-title-kind{{font-size:13px;margin-bottom:10px}}.doc-title-path{{font-size:23px;line-height:1.34}}.card h2{{font-size:21px;margin-top:42px;padding-left:15px}}.card h2:before{{top:14px;width:4px}}.card h3{{font-size:18px;margin-top:32px}}.card p,.card li{{font-size:15.6px;line-height:1.96}}.card>p:not(.lead-code){{text-indent:1.6em}}.card>p.lead-code{{text-indent:0;padding-left:1.6em}}.card ul,.card ol{{padding-left:1.45rem}}.card>ul,.card>ol{{padding:13px 13px 13px 1.65rem;margin:8px 0 26px}}.card li.depth-1{{margin-left:.85rem}}.card li.depth-2{{margin-left:1.7rem}}.card li.depth-3,.card li.depth-4,.card li.depth-5{{margin-left:2.55rem}}.source-form{{display:grid;border-radius:5px;padding:9px;margin:24px 0}}input{{width:100%;flex:auto;padding:11px}}button{{width:100%;padding:12px 16px}}pre{{border-radius:4px;padding:14px 15px}}}}
 </style><script>
-(function(){{try{{var t=localStorage.getItem('repo-docs-theme')||'dark';document.documentElement.dataset.theme=t;}}catch(e){{document.documentElement.dataset.theme='dark';}}}})();
+(function(){{try{{var t=localStorage.getItem('repo-docs-theme')||'light';document.documentElement.dataset.theme=t;}}catch(e){{document.documentElement.dataset.theme='light';}}}})();
 function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='light'?'dark':'light';r.dataset.theme=n;try{{localStorage.setItem('repo-docs-theme',n)}}catch(e){{}}}}
 (function(){{
   function syncSidebarWidth(){{
@@ -838,8 +940,8 @@ def tree_item_html(repo_id: str, name: str, node: dict, depth: int = 0) -> str:
         open_attr = " open" if depth <= 0 else ""
         return f"<details class='tree-node tree-{kind} depth-{indent}' data-doc='{doc_href_attr}'{open_attr}><summary class='tree-summary' title='{title}'><button class='tree-toggle' type='button' aria-label='展开或折叠'>▸</button><a class='tree-dir-link tree-label' href='{doc_href_attr or '#'}' title='{title}'>{display_html}</a></summary><div class='tree-children'>{child_html}</div></details>"
     if doc:
-        return f"<a class='tree-leaf tree-{kind} depth-{indent}' href='{doc_href(repo_id, doc)}' title='{title}'><span class='tree-label'>{display_html}</span></a>"
-    return f"<span class='tree-leaf tree-missing depth-{indent}' title='{title}'><span class='tree-label'>{display_html}</span></span>"
+        return f"<a class='tree-leaf tree-{kind} depth-{indent}' href='{doc_href(repo_id, doc)}' title='{title}'><span class='tree-toggle-spacer' aria-hidden='true'></span><span class='tree-label'>{display_html}</span></a>"
+    return f"<span class='tree-leaf tree-missing depth-{indent}' title='{title}'><span class='tree-toggle-spacer' aria-hidden='true'></span><span class='tree-label'>{display_html}</span></span>"
 
 
 def repo_sidebar(repo_id: str, gen: Path) -> str:
@@ -912,10 +1014,25 @@ class Handler(BaseHTTPRequestHandler):
         data=page(title,body,sidebar, getattr(self, "_current_repo_id", None)); self.send_response(code); self.send_header("Content-Type","text/html; charset=utf-8"); self.send_header("Content-Length",str(len(data))); self.end_headers(); self.wfile.write(data)
     def send_json(self, obj, code=200):
         data=json.dumps(obj, ensure_ascii=False).encode("utf-8"); self.send_response(code); self.send_header("Content-Type","application/json; charset=utf-8"); self.send_header("Content-Length",str(len(data))); self.end_headers(); self.wfile.write(data)
+    def send_asset(self, path: str):
+        rel = path[len("/assets/"):]
+        target = (ASSETS / rel).resolve()
+        if not str(target).startswith(str(ASSETS) + os.sep) or not target.exists() or not target.is_file():
+            self.send_html("404","<h1>Not found</h1>",404); return
+        content_types = {".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf", ".css": "text/css; charset=utf-8"}
+        data = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_types.get(target.suffix.lower(), "application/octet-stream"))
+        self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
     def redirect(self, loc):
         self.send_response(303); self.send_header("Location",loc); self.end_headers()
     def do_GET(self):
         u=urllib.parse.urlparse(self.path); path=urllib.parse.unquote(u.path)
+        if path.startswith("/assets/"):
+            self.send_asset(path); return
         if path=="/":
             with db() as con: repos=con.execute("SELECT * FROM repos ORDER BY updated_at DESC LIMIT 50").fetchall()
             repo_html="".join(f"<li class='repo-card'><a href='/repos/{r['repo_id']}/'><strong>{html.escape(r['repo_id'])}</strong></a> <span class='repo-id'>{html.escape(r['status'])}</span><br><small>{html.escape(r['source'])}</small></li>" for r in repos) or "<li class='repo-card'><span class='muted'>还没有生成过项目文档。</span></li>"

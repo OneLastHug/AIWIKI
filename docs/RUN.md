@@ -33,7 +33,7 @@ python3 scripts/run_pipeline.py \
   --out /data/project/AIWIKI/data/generated/data-project-lobehub-167e6641 \
   --concurrency 5 \
   --timeout 1800 \
-  --max-tasks 200
+  --max-tasks 500
 ```
 
 如果只想验证 Stage B/C，不调用总览模型：
@@ -64,7 +64,7 @@ python3 scripts/build_task_table.py \
   --repo /data/project/lobehub \
   --out /data/project/AIWIKI/data/generated/data-project-lobehub-167e6641 \
   --run-id manual-b \
-  --max-tasks 200
+  --max-tasks 500
 ```
 
 Stage C 并发执行任务池：
