@@ -10,3 +10,5 @@ data/service.sqlite3
 data/service.sqlite3-*
 # Generated-doc regeneration backups
 data/generated/*.bak-*
+data/generated/*/codex_debug/
+data/generated/*/codex_failures.log

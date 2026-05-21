@@ -1,0 +1,646 @@
+{
+  "repo": "/data/project/lobehub",
+  "total": 80,
+  "tasks": [
+    {
+      "priority": 10,
+      "kind": "directory",
+      "rel_path": "src",
+      "abs_path": "/data/project/lobehub/src",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/src.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 20,
+      "kind": "directory",
+      "rel_path": "src/server",
+      "abs_path": "/data/project/lobehub/src/server",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/src__server.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 30,
+      "kind": "directory",
+      "rel_path": "src/store",
+      "abs_path": "/data/project/lobehub/src/store",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/src__store.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 40,
+      "kind": "directory",
+      "rel_path": "src/features",
+      "abs_path": "/data/project/lobehub/src/features",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/src__features.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 50,
+      "kind": "directory",
+      "rel_path": "src/routes",
+      "abs_path": "/data/project/lobehub/src/routes",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/src__routes.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 60,
+      "kind": "directory",
+      "rel_path": "packages",
+      "abs_path": "/data/project/lobehub/packages",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/packages.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 70,
+      "kind": "directory",
+      "rel_path": "apps",
+      "abs_path": "/data/project/lobehub/apps",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/apps.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 80,
+      "kind": "file",
+      "rel_path": "src/server/runtimeConfig/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/runtimeConfig/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__runtimeConfig__index.ts.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 90,
+      "kind": "file",
+      "rel_path": "src/server/runtimeConfig/providers/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/runtimeConfig/providers/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__runtimeConfig__providers__index.ts.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 100,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__index.ts.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 110,
+      "kind": "file",
+      "rel_path": "src/server/services/agentRuntime/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/services/agentRuntime/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__services__agentRuntime__index.ts.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 120,
+      "kind": "file",
+      "rel_path": "src/store/serverConfig/index.ts",
+      "abs_path": "/data/project/lobehub/src/store/serverConfig/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__store__serverConfig__index.ts.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 130,
+      "kind": "directory",
+      "rel_path": "src/server/runtimeConfig",
+      "abs_path": "/data/project/lobehub/src/server/runtimeConfig",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/src__server__runtimeConfig.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 140,
+      "kind": "directory",
+      "rel_path": "src/server/routers",
+      "abs_path": "/data/project/lobehub/src/server/routers",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/src__server__routers.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 150,
+      "kind": "directory",
+      "rel_path": "src/server/services",
+      "abs_path": "/data/project/lobehub/src/server/services",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/src__server__services.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 160,
+      "kind": "directory",
+      "rel_path": "packages/database/src",
+      "abs_path": "/data/project/lobehub/packages/database/src",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/packages__database__src.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 170,
+      "kind": "directory",
+      "rel_path": "packages/model-runtime/src",
+      "abs_path": "/data/project/lobehub/packages/model-runtime/src",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/directories/packages__model-runtime__src.md",
+      "reason": "pinned-core"
+    },
+    {
+      "priority": 180,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/config/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/config/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__config__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 200,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/image/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/image/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__image__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 210,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/market/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/market/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__market__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 220,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/video/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/video/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__video__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 230,
+      "kind": "file",
+      "rel_path": "src/services/agentRuntime/index.ts",
+      "abs_path": "/data/project/lobehub/src/services/agentRuntime/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__services__agentRuntime__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 250,
+      "kind": "file",
+      "rel_path": "src/server/services/agentRuntime/hooks/index.ts",
+      "abs_path": "/data/project/lobehub/src/server/services/agentRuntime/hooks/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__services__agentRuntime__hooks__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 280,
+      "kind": "file",
+      "rel_path": "packages/model-runtime/src/providers/openrouter/index.ts",
+      "abs_path": "/data/project/lobehub/packages/model-runtime/src/providers/openrouter/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/packages__model-runtime__src__providers__openrouter__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 300,
+      "kind": "file",
+      "rel_path": "src/business/server/lambda-routers/config.ts",
+      "abs_path": "/data/project/lobehub/src/business/server/lambda-routers/config.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__business__server__lambda-routers__config.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 310,
+      "kind": "file",
+      "rel_path": "src/libs/trpc/lambda/index.ts",
+      "abs_path": "/data/project/lobehub/src/libs/trpc/lambda/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__libs__trpc__lambda__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 320,
+      "kind": "file",
+      "rel_path": "src/libs/trpc/lambda/middleware/index.ts",
+      "abs_path": "/data/project/lobehub/src/libs/trpc/lambda/middleware/index.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__libs__trpc__lambda__middleware__index.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 330,
+      "kind": "file",
+      "rel_path": "src/business/server/lambda-routers/accountDeletion.ts",
+      "abs_path": "/data/project/lobehub/src/business/server/lambda-routers/accountDeletion.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__business__server__lambda-routers__accountDeletion.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 340,
+      "kind": "file",
+      "rel_path": "src/business/server/lambda-routers/file.ts",
+      "abs_path": "/data/project/lobehub/src/business/server/lambda-routers/file.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__business__server__lambda-routers__file.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 350,
+      "kind": "file",
+      "rel_path": "src/business/server/lambda-routers/referral.ts",
+      "abs_path": "/data/project/lobehub/src/business/server/lambda-routers/referral.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__business__server__lambda-routers__referral.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 360,
+      "kind": "file",
+      "rel_path": "src/business/server/lambda-routers/spend.ts",
+      "abs_path": "/data/project/lobehub/src/business/server/lambda-routers/spend.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__business__server__lambda-routers__spend.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 370,
+      "kind": "file",
+      "rel_path": "src/business/server/lambda-routers/subscription.ts",
+      "abs_path": "/data/project/lobehub/src/business/server/lambda-routers/subscription.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__business__server__lambda-routers__subscription.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 380,
+      "kind": "file",
+      "rel_path": "src/business/server/lambda-routers/taskTemplate.ts",
+      "abs_path": "/data/project/lobehub/src/business/server/lambda-routers/taskTemplate.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__business__server__lambda-routers__taskTemplate.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 390,
+      "kind": "file",
+      "rel_path": "src/business/server/lambda-routers/topUp.ts",
+      "abs_path": "/data/project/lobehub/src/business/server/lambda-routers/topUp.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__business__server__lambda-routers__topUp.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 400,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/_template.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/_template.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda___template.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 410,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agent.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agent.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agent.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 420,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agentBotProvider.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agentBotProvider.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agentBotProvider.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 430,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agentDocument.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agentDocument.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agentDocument.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 440,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agentEval.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agentEval.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agentEval.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 450,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agentEvalExternal.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agentEvalExternal.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agentEvalExternal.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 460,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agentGroup.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agentGroup.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agentGroup.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 470,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agentNotify.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agentNotify.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agentNotify.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 480,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agentSignal.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agentSignal.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agentSignal.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 490,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/agentSkills.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/agentSkills.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__agentSkills.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 500,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/aiAgent.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/aiAgent.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__aiAgent.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 510,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/aiChat.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/aiChat.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__aiChat.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 520,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/aiModel.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/aiModel.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__aiModel.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 530,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/aiProvider.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/aiProvider.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__aiProvider.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 540,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/apiKey.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/apiKey.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__apiKey.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 550,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/botMessage.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/botMessage.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__botMessage.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 560,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/brief.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/brief.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__brief.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 570,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/changelog.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/changelog.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__changelog.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 580,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/chunk.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/chunk.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__chunk.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 590,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/comfyui.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/comfyui.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__comfyui.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 600,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/device.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/device.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__device.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 610,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/document.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/document.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__document.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 620,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/exporter.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/exporter.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__exporter.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 630,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/file.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/file.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__file.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 640,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/followUpAction.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/followUpAction.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__followUpAction.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 650,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/generation.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/generation.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__generation.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 660,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/generationBatch.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/generationBatch.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__generationBatch.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 670,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/generationTopic.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/generationTopic.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__generationTopic.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 680,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/home.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/home.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__home.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 690,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/importer.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/importer.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__importer.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 700,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/klavis.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/klavis.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__klavis.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 710,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/knowledge.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/knowledge.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__knowledge.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 720,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/knowledgeBase.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/knowledgeBase.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__knowledgeBase.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 730,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/message.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/message.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__message.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 740,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/messenger.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/messenger.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__messenger.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 750,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/notebook.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/notebook.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__notebook.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 760,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/notification.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/notification.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__notification.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 770,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/oauthDeviceFlow.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/oauthDeviceFlow.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__oauthDeviceFlow.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 780,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/plugin.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/plugin.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__plugin.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 790,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/ragEval.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/ragEval.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__ragEval.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 800,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/recent.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/recent.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__recent.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 810,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/search.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/search.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__search.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 820,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/session.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/session.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__session.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 830,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/sessionGroup.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/sessionGroup.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__sessionGroup.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 840,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/share.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/share.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__share.ts.md",
+      "reason": "auto-core-ranked"
+    },
+    {
+      "priority": 850,
+      "kind": "file",
+      "rel_path": "src/server/routers/lambda/task.ts",
+      "abs_path": "/data/project/lobehub/src/server/routers/lambda/task.ts",
+      "output_md": "/data/project/repo-docs-service/data/generated/data-project-lobehub-167e6641/files/src__server__routers__lambda__task.ts.md",
+      "reason": "auto-core-ranked"
+    }
+  ]
+}

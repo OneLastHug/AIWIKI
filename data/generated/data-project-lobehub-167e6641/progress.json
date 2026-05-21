@@ -1,9 +1,14 @@
 {
-  "status": "completed",
-  "done": 680,
-  "total": 680,
-  "percent": 100.0,
-  "current": "完成",
-  "updated_at": 1779331568.9401586,
-  "unit": "目录+文件"
+  "status": "paused-for-github-upload",
+  "done": 1,
+  "total": 80,
+  "percent": 1.25,
+  "failed": 15,
+  "current": "已暂停解析，准备上传公开 GitHub 仓库",
+  "updated_at": 1779344919.8907828,
+  "unit": "Codex独立Agent解析页",
+  "note": "任务来自 codex_task_table.csv；每个目录/文件单独启动 Codex agent，完成/失败后关闭进程；成功写回才计数。",
+  "model": "gpt-5.5",
+  "reasoning": "medium",
+  "timeout_seconds": 600
 }
