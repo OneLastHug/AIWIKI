@@ -5,7 +5,7 @@
 ## 运行
 
 ```bash
-cd /data/project/repo-docs-service
+cd /data/project/AIWIKI
 python3 server.py
 ```
 
@@ -54,4 +54,6 @@ data/generated/<repo_id>/
 
 ## 注意
 
-MVP 会先用本地快照生成可读文档；如果 Codex CLI 可用，会尝试增强文档。Codex 失败不会导致服务不可用。
+服务会先用本地快照生成基础文档，再启动三阶段 Codex 管线：项目总览、任务表构建、并发目录/文件解析。管线失败时会保留基础文档；部分任务失败时，成功页面仍可浏览并可重跑。
+
+运行与管线说明见 [docs/RUN.md](docs/RUN.md)。

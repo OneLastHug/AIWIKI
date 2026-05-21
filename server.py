@@ -16,7 +16,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
-import tempfile
+import sys
 import threading
 import time
 import urllib.parse
@@ -28,7 +28,7 @@ from typing import Iterable
 
 HOST = os.environ.get("RDS_HOST", "127.0.0.1")
 PORT = int(os.environ.get("RDS_PORT", "18081"))
-BASE = Path(os.environ.get("RDS_BASE", "/data/project/repo-docs-service/data")).resolve()
+BASE = Path(os.environ.get("RDS_BASE") or (Path(__file__).resolve().parent / "data")).resolve()
 DB = BASE / "service.sqlite3"
 LOCAL_ROOT = Path("/data/project").resolve()
 
@@ -232,8 +232,6 @@ def write_md(path: Path, content: str) -> None:
 
 
 def generate_fallback_docs(root: Path, gen: Path, source: str, scan: Scan, warning: str | None = None) -> list[str]:
-    if gen.exists():
-        shutil.rmtree(gen)
     gen.mkdir(parents=True, exist_ok=True)
     dirs = important_dirs(scan.files)
     code_files = important_code_files(root, scan.files)
@@ -367,26 +365,37 @@ def generate_fallback_docs(root: Path, gen: Path, source: str, scan: Scan, warni
     return order
 
 
-def try_codex_enhance(root: Path, gen: Path, source: str, scan: Scan) -> str | None:
-    if os.environ.get("RDS_ENABLE_CODEX", "0") not in {"1", "true", "yes"}:
-        return "MVP 默认跳过在线 Codex 增强，已使用本地快照生成基础文档。设置 RDS_ENABLE_CODEX=1 可开启。"
-    if not shutil.which("codex"):
-        return "未找到 codex CLI，已使用本地快照生成基础文档。"
-    prompt = f"""
-你是代码仓库学习文档作者。请读取仓库 {root} 和已有生成目录 {gen}，在不删除现有文件的前提下增强 Markdown 文档。
-目标：面向中文读者和小白，正文必须以中文为主；除代码原文、文件名、函数名、类名、命令、库名、协议名等不可翻译的专有名词外，不要大段使用英文。解释项目目录、关键文件、函数/组件职责；首页 index.md 必须是推荐阅读顺序。不要分析为纯内容宣传；只基于代码事实，推测要标注。输出多页 Markdown，不要生成单个巨型文件。
-来源：{source}
-统计：文件总数={scan.total}, 代码文件={scan.code}, 文档文件={scan.docs}, 工程清单={scan.manifests}
-"""
-    try:
-        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
-            f.write(prompt); pp = f.name
-        proc = subprocess.run(["codex", "exec", "--sandbox", "workspace-write", "--skip-git-repo-check", "--add-dir", str(gen), "-"], input=prompt, text=True, cwd=str(root), capture_output=True, timeout=600)
-        if proc.returncode != 0:
-            return "Codex 增强失败，已保留基础文档。" + (proc.stderr or proc.stdout)[-1000:]
-        return None
-    except Exception as e:
-        return f"Codex 增强异常，已保留基础文档：{e}"
+def pipeline_terminal(gen: Path) -> tuple[str | None, str]:
+    for status, name in [("completed", "pipeline.success"), ("partial", "pipeline.partial"), ("failed", "pipeline.failed")]:
+        path = gen / name
+        if path.exists():
+            try:
+                return status, path.read_text(encoding="utf-8", errors="replace")[-2000:]
+            except Exception:
+                return status, ""
+    return None, ""
+
+
+def run_pipeline(root: Path, gen: Path) -> tuple[int, str]:
+    script = Path(__file__).resolve().parent / "scripts" / "run_pipeline.py"
+    cmd = [
+        sys.executable,
+        str(script),
+        "--repo",
+        str(root),
+        "--out",
+        str(gen),
+        "--concurrency",
+        os.environ.get("RDS_PIPELINE_CONCURRENCY", "5"),
+        "--timeout",
+        os.environ.get("RDS_PIPELINE_TIMEOUT", "600"),
+        "--max-tasks",
+        os.environ.get("RDS_PIPELINE_MAX_TASKS", "200"),
+    ]
+    if os.environ.get("RDS_PIPELINE_SKIP_OVERVIEW", "").lower() in {"1", "true", "yes"}:
+        cmd.append("--skip-overview")
+    proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return int(proc.returncode), proc.stdout or ""
 
 
 def worker() -> None:
@@ -409,12 +418,29 @@ def worker() -> None:
             gen = BASE / "generated" / repo_id
             update_job(job_id, "generating", "正在生成分段 Markdown 文档", f"扫描完成 total={s.total} code={s.code} docs={s.docs} manifests={s.manifests}")
             order = generate_fallback_docs(root, gen, source, s)
-            warn = try_codex_enhance(root, gen, source, s)
-            if warn:
-                update_job(job_id, append=warn)
-            update_job(job_id, "completed", f"生成完成，共 {len(order)} 个文档入口", "完成")
             with db() as con:
-                con.execute("UPDATE repos SET local_path=?, generated_path=?, status=?, updated_at=? WHERE repo_id=?", (str(root), str(gen), "completed", now(), repo_id))
+                con.execute("UPDATE repos SET local_path=?, generated_path=?, status=?, updated_at=? WHERE repo_id=?", (str(root), str(gen), "generating", now(), repo_id))
+            update_job(job_id, append=f"基础文档已写入 {gen}，开始三阶段 Codex 管线")
+            code, output = run_pipeline(root, gen)
+            if output:
+                update_job(job_id, append=output[-4000:])
+            terminal, terminal_text = pipeline_terminal(gen)
+            if terminal == "completed":
+                update_job(job_id, "completed", f"生成完成，共 {len(order)} 个基础入口，Codex 管线已完成", "完成")
+                repo_status = "completed"
+            elif terminal == "partial":
+                update_job(job_id, "completed", "生成完成，部分任务失败，可重跑；成功文档仍可浏览", terminal_text or "部分任务失败")
+                repo_status = "completed"
+            else:
+                msg = "三阶段管线失败，已保留基础文档。"
+                if terminal_text:
+                    msg += terminal_text[-1000:]
+                elif code != 0:
+                    msg += f" pipeline returncode={code}"
+                update_job(job_id, "failed", msg, msg)
+                repo_status = "failed"
+            with db() as con:
+                con.execute("UPDATE repos SET local_path=?, generated_path=?, status=?, updated_at=? WHERE repo_id=?", (str(root), str(gen), repo_status, now(), repo_id))
         except Exception as e:
             update_job(job_id, "failed", str(e), f"失败: {e}")
         finally:
@@ -623,14 +649,14 @@ function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='
     }});
   }}
   function highlightCurrent(){{
-    var p=location.pathname.replace(/\/$/,'');
+    var p=location.pathname.replace(/\\/$/,'');
     var best=null;
     document.querySelectorAll('.overview-link,.tree-dir-link,.tree-leaf').forEach(function(el){{
       el.classList.remove('is-active');
       var href=el.getAttribute('href');
       if(!href || href==='#') return;
       var a=document.createElement('a'); a.href=href;
-      var hp=(a.pathname||'').replace(/\/$/,'');
+      var hp=(a.pathname||'').replace(/\\/$/,'');
       if(hp===p && (!best || (href.length > (best.getAttribute('href')||'').length))) best=el;
     }});
     if(best){{
@@ -812,6 +838,8 @@ def repo_sidebar(repo_id: str, gen: Path) -> str:
 class Handler(BaseHTTPRequestHandler):
     def send_html(self, title, body, code=200, sidebar=""):
         data=page(title,body,sidebar, getattr(self, "_current_repo_id", None)); self.send_response(code); self.send_header("Content-Type","text/html; charset=utf-8"); self.send_header("Content-Length",str(len(data))); self.end_headers(); self.wfile.write(data)
+    def send_json(self, obj, code=200):
+        data=json.dumps(obj, ensure_ascii=False).encode("utf-8"); self.send_response(code); self.send_header("Content-Type","application/json; charset=utf-8"); self.send_header("Content-Length",str(len(data))); self.end_headers(); self.wfile.write(data)
     def redirect(self, loc):
         self.send_response(303); self.send_header("Location",loc); self.end_headers()
     def do_GET(self):
@@ -829,6 +857,29 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/repos/"):
             parts=path.strip("/").split("/",2); repo_id=parts[1]; sub=parts[2] if len(parts)>2 else ""
             gen=BASE/"generated"/repo_id
+            if sub.rstrip("/") == "signals":
+                qs=urllib.parse.parse_qs(u.query)
+                try:
+                    since=int(qs.get("since",["0"])[0] or 0)
+                except ValueError:
+                    since=0
+                state=gen/"state.sqlite3"
+                if not state.exists():
+                    self.send_json({"signals":[]}); return
+                signals=[]
+                try:
+                    con=sqlite3.connect(state, timeout=30); con.row_factory=sqlite3.Row
+                    rows=con.execute("SELECT id,type,payload,at FROM signals WHERE id>? ORDER BY id LIMIT 200",(since,)).fetchall()
+                    con.close()
+                    for row in rows:
+                        try:
+                            payload=json.loads(row["payload"] or "{}")
+                        except Exception:
+                            payload=row["payload"]
+                        signals.append({"id":row["id"],"type":row["type"],"payload":payload,"at":row["at"]})
+                except Exception as e:
+                    self.send_json({"signals":[],"error":str(e)},500); return
+                self.send_json({"signals":signals}); return
             md = gen/(sub + ("" if sub.endswith(".md") else ".md")) if sub else gen/"index.md"
             self._current_repo_id = repo_id
             if not md.exists(): self.send_html("404","<h1>文档不存在</h1>",404,repo_sidebar(repo_id,gen)); return
