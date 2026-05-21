@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
 from _common import (
+    DEFAULT_TIMEOUT_SECONDS,
     MODEL,
     OVERVIEW_REASONING,
     atomic_write_text,
@@ -21,6 +23,7 @@ from _common import (
     strip_codex_output,
     validate_markdown,
 )
+from local_fallback import is_codex_unavailable_output, write_stage_a_fallback
 
 REQUIRED_MARKDOWN = [
     "index.md",
@@ -131,9 +134,10 @@ def main() -> int:
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     args = parser.parse_args()
 
+    local_fallback_disabled = os.environ.get("AIWIKI_DISABLE_LOCAL_FALLBACK", "").lower() in {"1", "true", "yes"}
     repo = args.repo.resolve()
     out = args.out.resolve()
     debug = out / "codex_debug"
@@ -143,6 +147,21 @@ def main() -> int:
     ensure_run(out, args.run_id, repo, reasoning=OVERVIEW_REASONING, timeout_seconds=args.timeout)
     set_stage_status(out, args.run_id, "A", "running", message="Stage A overview running")
     emit_signal(out, args.run_id, "STAGE_STARTED", {"stage": "A", "repo": str(repo), "out": str(out)})
+
+    if not local_fallback_disabled and os.environ.get("AIWIKI_FORCE_LOCAL_FALLBACK", "").lower() in {"1", "true", "yes"}:
+        fallback_payload = write_stage_a_fallback(repo, out, "AIWIKI_FORCE_LOCAL_FALLBACK enabled")
+        ok, reason, payload = validate_stage_a(out)
+        if not ok:
+            payload = {"stage": "A", "error": f"local Stage A fallback validation failed: {reason}", **fallback_payload}
+            set_stage_status(out, args.run_id, "A", "failed", message=payload["error"], payload=payload)
+            emit_signal(out, args.run_id, "STAGE_FAILED", payload)
+            render_progress_json_from_db(out, args.run_id)
+            return 1
+        payload.update(fallback_payload)
+        set_stage_status(out, args.run_id, "A", "completed", message="Stage A overview completed with local fallback", payload=payload)
+        emit_signal(out, args.run_id, "STAGE_COMPLETED", {"stage": "A", **payload})
+        render_progress_json_from_db(out, args.run_id)
+        return 0
 
     prompt = build_prompt(repo, out)
     atomic_write_text(debug / "stage_a_prompt.txt", prompt)
@@ -160,6 +179,17 @@ def main() -> int:
         if timed_out:
             raise RuntimeError(f"Codex overview timed out after {args.timeout}s")
         if code != 0:
+            if not local_fallback_disabled and is_codex_unavailable_output(raw):
+                reason_text = strip_codex_output(raw)[-500:] or "Codex CLI unavailable"
+                fallback_payload = write_stage_a_fallback(repo, out, reason_text)
+                ok, reason, payload = validate_stage_a(out)
+                if not ok:
+                    raise RuntimeError(f"local Stage A fallback validation failed: {reason}")
+                payload.update(fallback_payload)
+                set_stage_status(out, args.run_id, "A", "completed", message="Stage A overview completed with local fallback", payload=payload)
+                emit_signal(out, args.run_id, "STAGE_COMPLETED", {"stage": "A", **payload})
+                render_progress_json_from_db(out, args.run_id)
+                return 0
             tail = strip_codex_output(raw)[-1200:]
             raise RuntimeError(f"Codex overview exited with {code}: {tail}")
         ok, reason, payload = validate_stage_a(out)

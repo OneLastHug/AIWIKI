@@ -176,6 +176,15 @@ def filter_reason(s: Scan) -> str | None:
 def import_source(source: str, repo_id: str) -> Path:
     if is_remote(source):
         dest = BASE / "repos" / repo_id / "source"
+        if (dest / ".git").exists():
+            check = subprocess.run(
+                ["git", "-C", str(dest), "rev-parse", "--is-inside-work-tree"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            if check.returncode == 0 and check.stdout.strip() == "true":
+                return dest
         if dest.exists():
             shutil.rmtree(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -388,13 +397,13 @@ def run_pipeline(root: Path, gen: Path) -> tuple[int, str]:
         "--concurrency",
         os.environ.get("RDS_PIPELINE_CONCURRENCY", "5"),
         "--timeout",
-        os.environ.get("RDS_PIPELINE_TIMEOUT", "600"),
+        os.environ.get("RDS_PIPELINE_TIMEOUT", "1800"),
         "--max-tasks",
         os.environ.get("RDS_PIPELINE_MAX_TASKS", "200"),
     ]
     if os.environ.get("RDS_PIPELINE_SKIP_OVERVIEW", "").lower() in {"1", "true", "yes"}:
         cmd.append("--skip-overview")
-    proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(cmd, text=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return int(proc.returncode), proc.stdout or ""
 
 
@@ -456,45 +465,103 @@ def md_inline(s: str) -> str:
 
 
 def render_md(text: str) -> str:
-    out=[]; code=[]; in_code=False; list_type=None; quote=[]
+    out=[]; code=[]; in_code=False; code_lang=""; list_type=None; quote=[]; para=[]
+
+    def flush_para():
+        nonlocal para
+        if para:
+            out.append("<p>" + md_inline(" ".join(p.strip() for p in para)) + "</p>")
+            para=[]
+
     def close_list():
         nonlocal list_type
         if list_type:
             out.append(f"</{list_type}>"); list_type=None
+
     def close_quote():
         nonlocal quote
         if quote:
-            close_list(); out.append("<blockquote>" + "\n".join(f"<p>{md_inline(q)}</p>" for q in quote) + "</blockquote>"); quote=[]
+            flush_para(); close_list()
+            parts=[]; block=[]
+            for q in quote:
+                if q.strip():
+                    block.append(q.strip())
+                elif block:
+                    parts.append("<p>" + md_inline(" ".join(block)) + "</p>"); block=[]
+            if block:
+                parts.append("<p>" + md_inline(" ".join(block)) + "</p>")
+            out.append("<blockquote>" + "\n".join(parts) + "</blockquote>"); quote=[]
+
     def open_list(kind):
         nonlocal list_type
-        close_quote()
+        close_quote(); flush_para()
         if list_type != kind:
             close_list(); out.append(f"<{kind}>"); list_type=kind
-    for line in text.splitlines():
-        if line.strip().startswith("```"):
-            close_quote(); close_list()
+
+    def render_table(rows):
+        def split_row(row):
+            row=row.strip().strip("|")
+            return [md_inline(cell.strip()) for cell in row.split("|")]
+        head=split_row(rows[0])
+        body=[split_row(r) for r in rows[2:]]
+        th="".join(f"<th>{cell}</th>" for cell in head)
+        trs=["<thead><tr>"+th+"</tr></thead>"]
+        if body:
+            trs.append("<tbody>" + "".join("<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>" for row in body) + "</tbody>")
+        out.append("<div class='table-wrap'><table>" + "".join(trs) + "</table></div>")
+
+    lines=text.splitlines()
+    i=0
+    while i < len(lines):
+        line=lines[i]
+        stripped=line.strip()
+        if stripped.startswith("```"):
+            close_quote(); flush_para(); close_list()
             if not in_code:
-                in_code=True; code=[]
+                in_code=True; code=[]; code_lang=stripped[3:].strip().split()[0] if stripped[3:].strip() else ""
             else:
-                out.append("<pre><code>"+html.escape("\n".join(code))+"</code></pre>"); in_code=False
-            continue
-        if in_code: code.append(line); continue
-        if not line.strip(): close_quote(); close_list(); continue
+                cls=f' class="language-{html.escape(code_lang)}"' if code_lang else ""
+                out.append("<pre><code"+cls+">"+html.escape("\n".join(code))+"</code></pre>")
+                in_code=False; code_lang=""
+            i+=1; continue
+        if in_code:
+            code.append(line); i+=1; continue
+        if not stripped:
+            close_quote(); flush_para(); close_list(); i+=1; continue
+        if re.match(r"^[-*_]\s*[-*_]\s*[-*_][\s*_=-]*$", stripped):
+            close_quote(); flush_para(); close_list(); out.append("<hr>"); i+=1; continue
+        if stripped.startswith("|") and i+1 < len(lines) and re.match(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$", lines[i+1]):
+            close_quote(); flush_para(); close_list()
+            rows=[line, lines[i+1]]; i+=2
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                rows.append(lines[i]); i+=1
+            render_table(rows); continue
         m=re.match(r"^>\s?(.*)$", line)
         if m:
-            quote.append(m.group(1)); continue
+            flush_para(); close_list(); quote.append(m.group(1)); i+=1; continue
         close_quote()
         m=re.match(r"^(#{1,6})\s+(.*)$", line)
         if m:
-            close_list(); n=len(m.group(1)); out.append(f"<h{n}>{md_inline(m.group(2))}</h{n}>"); continue
-        m=re.match(r"^\s*[-*]\s+(.*)$", line)
+            flush_para(); close_list(); n=len(m.group(1)); out.append(f"<h{n}>{md_inline(m.group(2))}</h{n}>"); i+=1; continue
+        m=re.match(r"^(\s*)[-*]\s+(.*)$", line)
         if m:
-            open_list('ul'); out.append("<li>"+md_inline(m.group(1))+"</li>"); continue
-        m=re.match(r"^\s*\d+[.)]\s+(.*)$", line)
+            open_list('ul')
+            depth=min(5, len(m.group(1).replace("\t", "    ")) // 2)
+            item=m.group(2)
+            task=re.match(r"^\[( |x|X)\]\s+(.*)$", item)
+            if task:
+                checked=" checked" if task.group(1).lower()=="x" else ""
+                item=f"<input type='checkbox' disabled{checked}> " + md_inline(task.group(2))
+            else:
+                item=md_inline(item)
+            out.append(f"<li class='depth-{depth}'>"+item+"</li>"); i+=1; continue
+        m=re.match(r"^(\s*)\d+[.)]\s+(.*)$", line)
         if m:
-            open_list('ol'); out.append("<li>"+md_inline(m.group(1))+"</li>"); continue
-        close_list(); out.append("<p>"+md_inline(line)+"</p>")
-    close_quote(); close_list()
+            open_list('ol')
+            depth=min(5, len(m.group(1).replace("\t", "    ")) // 2)
+            out.append(f"<li class='depth-{depth}'>"+md_inline(m.group(2))+"</li>"); i+=1; continue
+        para.append(line); i+=1
+    close_quote(); flush_para(); close_list()
     if in_code: out.append("<pre><code>"+html.escape("\n".join(code))+"</code></pre>")
     return "\n".join(out)
 
@@ -776,7 +843,12 @@ def tree_item_html(repo_id: str, name: str, node: dict, depth: int = 0) -> str:
 
 
 def repo_sidebar(repo_id: str, gen: Path) -> str:
-    files = sorted(str(p.relative_to(gen)).replace(os.sep,"/") for p in gen.rglob("*.md")) if gen.exists() else []
+    files = sorted(
+        rel
+        for p in gen.rglob("*.md")
+        for rel in [str(p.relative_to(gen)).replace(os.sep, "/")]
+        if not rel.startswith("codex_debug/")
+    ) if gen.exists() else []
     file_set = set(files)
     consumed: set[str] = set()
 

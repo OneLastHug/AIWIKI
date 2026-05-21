@@ -17,7 +17,7 @@ from typing import Any
 MODEL = "gpt-5.5"
 OVERVIEW_REASONING = "high"
 TASK_REASONING = "medium"
-DEFAULT_TIMEOUT_SECONDS = 600
+DEFAULT_TIMEOUT_SECONDS = 1800
 STATE_FILES = {
     "completed": "pipeline.success",
     "partial": "pipeline.partial",
@@ -445,7 +445,7 @@ def run_process_group(
     proc = subprocess.Popen(
         cmd,
         cwd=str(cwd),
-        stdin=subprocess.PIPE if input_text is not None else None,
+        stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

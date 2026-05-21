@@ -6,12 +6,14 @@ import argparse
 import asyncio
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
 from _common import (
+    DEFAULT_TIMEOUT_SECONDS,
     MODEL,
     TASK_REASONING,
     atomic_write_text,
@@ -28,6 +30,7 @@ from _common import (
     update_run_status,
     validate_markdown,
 )
+from local_fallback import is_codex_unavailable_output, task_fallback_markdown
 
 REQUIRED_HEADINGS = [
     "## 它负责什么",
@@ -41,6 +44,7 @@ REQUIRED_HEADINGS = [
 stop_event: asyncio.Event | None = None
 signal_count = 0
 worker_ids: list[str] = []
+codex_unavailable_seen = False
 
 
 def build_prompt(repo: Path, task: dict[str, Any]) -> str:
@@ -303,6 +307,7 @@ async def run_codex_async(repo: Path, prompt: str, candidate_path: Path, timeout
     proc = await asyncio.create_subprocess_exec(
         *codex_command(repo, prompt, candidate_path),
         cwd=str(repo),
+        stdin=subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         start_new_session=True,
@@ -329,6 +334,8 @@ async def run_codex_async(repo: Path, prompt: str, candidate_path: Path, timeout
 
 
 async def run_one(repo: Path, out: Path, task: dict[str, Any], timeout: int) -> tuple[bool, str]:
+    global codex_unavailable_seen
+    local_fallback_disabled = os.environ.get("AIWIKI_DISABLE_LOCAL_FALLBACK", "").lower() in {"1", "true", "yes"}
     debug = out / "codex_debug"
     debug.mkdir(parents=True, exist_ok=True)
     safe = safe_debug_name(task["rel_key"])
@@ -343,11 +350,42 @@ async def run_one(repo: Path, out: Path, task: dict[str, Any], timeout: int) -> 
 
     prompt = build_prompt(repo, task)
     atomic_write_text(prompt_path, prompt)
+    if not local_fallback_disabled and (
+        codex_unavailable_seen or os.environ.get("AIWIKI_FORCE_LOCAL_FALLBACK", "").lower() in {"1", "true", "yes"}
+    ):
+        atomic_write_text(raw_path, "Codex skipped because local fallback is active.\n")
+        candidate = task_fallback_markdown(repo, task, "Codex CLI unavailable; using local fallback for remaining tasks")
+        atomic_write_text(candidate_path, candidate)
+        ok, reason = validate_markdown(
+            candidate,
+            min_chars=650 if task["kind"] == "directory" else 550,
+            required_headings=REQUIRED_HEADINGS,
+            must_contain=task["rel_path"],
+        )
+        if not ok:
+            return False, "local fallback validation failed: " + reason
+        atomic_write_text(final_path, candidate.strip() + "\n")
+        return True, "local fallback"
     code, raw, timed_out = await run_codex_async(repo, prompt, candidate_path, timeout)
     atomic_write_text(raw_path, raw)
     if timed_out:
         return False, f"timeout after {timeout}s; process group killed"
     if code != 0:
+        if not local_fallback_disabled and is_codex_unavailable_output(raw):
+            codex_unavailable_seen = True
+            reason_text = strip_codex_output(raw)[-500:] or "Codex CLI unavailable"
+            candidate = task_fallback_markdown(repo, task, reason_text)
+            atomic_write_text(candidate_path, candidate)
+            ok, reason = validate_markdown(
+                candidate,
+                min_chars=650 if task["kind"] == "directory" else 550,
+                required_headings=REQUIRED_HEADINGS,
+                must_contain=task["rel_path"],
+            )
+            if not ok:
+                return False, "local fallback validation failed: " + reason
+            atomic_write_text(final_path, candidate.strip() + "\n")
+            return True, "local fallback after Codex unavailable"
         return False, f"codex exited with {code}: {strip_codex_output(raw)[-1000:]}"
 
     candidate = ""
@@ -444,7 +482,7 @@ def main() -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--concurrency", type=int, default=5)
-    parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     args = parser.parse_args()
 
     repo = args.repo.resolve()

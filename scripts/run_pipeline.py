@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 from _common import (
+    DEFAULT_TIMEOUT_SECONDS,
     MODEL,
     TASK_REASONING,
     atomic_write_text,
@@ -27,7 +28,7 @@ from _common import (
 def run_child(out: Path, stage: str, cmd: list[str]) -> int:
     debug = out / "codex_debug"
     debug.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(cmd, text=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     atomic_write_text(debug / f"stage_{stage}_subprocess.txt", proc.stdout or "")
     return int(proc.returncode)
 
@@ -50,7 +51,7 @@ def main() -> int:
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--concurrency", type=int, default=5)
-    parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--max-tasks", type=int, default=200)
     parser.add_argument("--skip-overview", action="store_true")
     args = parser.parse_args()

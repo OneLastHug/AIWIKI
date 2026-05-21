@@ -32,7 +32,7 @@ python3 scripts/run_pipeline.py \
   --repo /data/project/lobehub \
   --out /data/project/AIWIKI/data/generated/data-project-lobehub-167e6641 \
   --concurrency 5 \
-  --timeout 600 \
+  --timeout 1800 \
   --max-tasks 200
 ```
 
@@ -75,10 +75,12 @@ python3 scripts/codex_parallel_pool.py \
   --out /data/project/AIWIKI/data/generated/data-project-lobehub-167e6641 \
   --run-id manual-c \
   --concurrency 5 \
-  --timeout 600
+  --timeout 1800
 ```
 
-通常应优先使用 `run_pipeline.py`，因为它会创建一致的 `run_id`、清理旧终态文件，并在结束时写入唯一终态文件。
+通常应优先使用 `run_pipeline.py`，因为它会创建一致的 `run_id`、清理旧终态文件，并在结束时写入唯一终态文件。默认超时为 1800 秒，Stage A 和 Stage C 共用这一套超时；如需调整，只传一次 `--timeout`。
+
+如果 Codex CLI 返回 usage limit、quota、鉴权或网络类错误，Stage A/C 会切到本地仓库快照兜底生成，并在 stage payload 与 Markdown 开头标明 fallback 原因；这保证管线状态、任务表、进度投影和终态文件仍然一致。需要做纯 Codex 验收时，可设置 `AIWIKI_DISABLE_LOCAL_FALLBACK=1`，此时 Codex 不可用会直接失败。
 
 ## 输出文件
 

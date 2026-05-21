@@ -1,0 +1,21 @@
+{
+  "status": "completed",
+  "done": 200,
+  "total": 200,
+  "percent": 100.0,
+  "failed": 0,
+  "current": "PIPELINE_COMPLETED",
+  "updated_at": 1779364636.824582,
+  "unit": "目录+文件",
+  "model": "gpt-5.5",
+  "reasoning": "medium",
+  "timeout_seconds": 1800,
+  "last_success": "apps/desktop/src/main/controllers/RemoteServerSyncCtr.ts",
+  "last_error": null,
+  "run_id": "24f270d3-afb0-4149-a107-7273382afca6",
+  "stage": "C",
+  "active_workers": [],
+  "task_breakdown": {
+    "done": 200
+  }
+}
