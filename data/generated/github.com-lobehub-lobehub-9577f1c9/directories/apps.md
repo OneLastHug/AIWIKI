@@ -2,55 +2,53 @@
 
 ## 它负责什么
 
-`apps` 是 LobeHub 仓库里的“独立应用层”，用于承载不属于主 Next.js / SPA Web 应用的可运行产物。它不是业务页面目录，也不是共享库目录，而是把 LobeHub 能力包装成不同运行形态：
+`apps` 是这个 monorepo 里的“独立应用层”，放的是可以单独开发、构建、发布或部署的应用，而不是通用业务代码。根项目的主体 Web/SPA 仍主要在 `src/`、`packages/` 中；`apps` 更像围绕 LobeHub 主产品扩展出来的端侧与工具侧入口。
 
-- `apps/cli`：命令行客户端，发布为 `@lobehub/cli`，提供 `lh` / `lobe` / `lobehub` 三个 bin 入口，用终端管理和调用 LobeHub 服务。
-- `apps/desktop`：Electron 桌面客户端，负责原生窗口、系统菜单、托盘、快捷键、更新、桌面权限、IPC、嵌入 CLI、文件与工具探测等桌面能力。
-- `apps/device-gateway`：Cloudflare Worker + Durable Object 服务，用于把远端 HTTP 请求桥接到用户在线的桌面设备 WebSocket，支持设备状态、工具调用、系统信息、agent run 等 RPC。
+从当前目录看，`apps` 下面有三个核心应用：`apps/desktop`、`apps/cli`、`apps/device-gateway`。它们分别对应 Electron 桌面端、命令行工具、Cloudflare Worker 设备网关。三者都依赖根仓库或 workspace packages 中的能力，但运行时边界不同：桌面端负责本地窗口、系统能力、Electron IPC 与桌面渲染入口；CLI 负责通过命令管理 LobeHub 的数据、配置、知识库、Agent、模型等；device-gateway 负责为桌面端和服务端之间提供按用户隔离的 WebSocket / HTTP 转发通道。
 
-可以把 `apps` 理解为“LobeHub 主体能力的外壳适配层”：主产品核心在根目录 `src/` 和 `packages/`，而 `apps` 负责让这些能力在 CLI、Electron、边缘网关等环境中运行。
+因此，阅读 `apps` 时不要把它当成主 Web 应用的页面目录。主 Web SPA 的路由入口在 `src/spa/` 和 `src/routes/`，而 `apps` 主要是“产品外壳、工具入口、边缘服务”。
 
-## 关键组成
+## 直接子目录地图
 
-`apps/cli` 的入口是 `src/index.ts`，只做一件事：调用 `createProgram().parse(process.argv, { from: 'node' })`。真正的命令注册在 `src/program.ts`，它使用 `commander` 创建 `lh` 程序，并依次注册 `login`、`logout`、`completion`、`connect`、`device`、`doc`、`search`、`kb`、`memory`、`agent`、`bot`、`generate`、`file`、`hetero`、`task`、`message`、`model`、`provider`、`plugin`、`eval`、`migrate` 等命令。它依赖 `@lobechat/agent-gateway-client`、`@lobechat/device-gateway-client`、`@lobechat/heterogeneous-agents`、`@lobechat/local-file-shell`，说明 CLI 并不只是普通管理工具，还会触达 agent、设备网关、本地文件和异构 agent 能力。
+`apps/desktop` 是 Electron 桌面应用。它有独立的 `package.json`、`electron.vite.config.ts`、`electron-builder.mjs`、`index.html`、`popup.html`、`overlay.html`，并在 `src/` 下区分 `main`、`preload`、`overlay`、`common`。其中 `src/main` 是 Electron 主进程核心区域，包含窗口、菜单、控制器、模块、服务、更新、网络代理、屏幕捕获、异构 Agent 等能力；`src/preload` 负责主进程和渲染进程之间的桥接；`src/overlay` 对应 overlay 独立入口。`build` 和 `resources` 主要放图标、安装包资源、启动页、错误页等发行资源。
 
-`apps/desktop` 是体量最大的子应用。入口 `src/main/index.ts` 先执行 `fixPath()` 修复桌面环境中的 `PATH`，然后实例化 `App` 并调用 `app.bootstrap()`。核心类在 `src/main/core/App.ts`，它初始化 `StoreManager`、`RendererUrlManager`、`LocalFileProtocolManager`、`ProtocolManager`，通过 `import.meta.glob('@/controllers/*Ctr.ts', { eager: true })` 自动加载控制器，通过 `import.meta.glob('@/services/*Srv.ts', { eager: true })` 自动加载服务，再启动 IPC、i18n、窗口、菜单、快捷键、托盘、更新器、静态文件服务、工具探测器、屏幕捕获等模块。`src/preload` 是 Electron preload 层，`src/overlay` 是屏幕捕获/悬浮层相关 React UI。
+`apps/cli` 是 `@lobehub/cli` 包。它通过 `bin` 暴露 `lh`、`lobe`、`lobehub` 三个命令别名，源码集中在 `apps/cli/src`。目录下的 `commands` 是命令注册与实现主区，`api`、`auth`、`settings`、`daemon`、`tools`、`utils` 提供调用服务、鉴权、本地配置、后台能力与工具函数；`e2e` 放 CLI 端到端用例；`man` 放命令手册输出。根据当前片段推断，CLI 是面向开发者或高级用户的管理入口，因为它覆盖了 doc、search、kb、memory、agent、model、provider、plugin、topic、message 等命令域。
 
-`apps/device-gateway` 的入口是 `src/index.ts`，使用 `Hono` 暴露 `/health`、`/ws` 和 `/api/device/*`。`/ws` 根据 `userId` 路由到 Durable Object；`/api/device/*` 通过 `SERVICE_TOKEN` 做服务间鉴权，再把请求转发给同一个用户对应的 `DeviceGatewayDO`。`DeviceGatewayDO.ts` 维护每个用户的 WebSocket 连接、认证状态、心跳和 pending RPC 请求。
+`apps/device-gateway` 是 `@lobechat/device-gateway`，一个基于 Hono 和 Cloudflare Workers / Durable Objects 的设备网关服务。它的 `src/index.ts` 建立 HTTP 路由，`src/DeviceGatewayDO.ts` 应该是每个用户连接态的 Durable Object，`src/auth.ts` 负责认证相关逻辑，`wrangler.toml` 是 Worker 部署配置，`scripts/extract-public-key.mjs` 是辅助脚本。
 
-## 上下游关系
+## 关键入口
 
-上游看，`apps` 依赖根仓库和 `packages` 里的共享能力。例如 CLI 和 Desktop 都引用 `@lobechat/device-gateway-client`、`@lobechat/heterogeneous-agents`、`@lobechat/local-file-shell` 等 workspace 包；Desktop 还依赖 `@lobechat/electron-client-ipc`、`@lobechat/electron-server-ipc`、`@lobechat/desktop-bridge` 来完成主进程、preload 和渲染侧通信。
+桌面端的开发与构建入口主要看 `apps/desktop/package.json` 和 `apps/desktop/electron.vite.config.ts`。`package.json` 中 `dev` 运行 `electron-vite dev`，`build:main` 运行 `electron-vite build`，`package:mac`、`package:win`、`package:linux` 通过 `electron-builder` 打包。Electron 主入口由 `main` 字段指向 `./dist/main/index.js`，源头则应从 `apps/desktop/src/main` 继续追踪。渲染侧 HTML 入口在 `apps/desktop/index.html`、`apps/desktop/popup.html`、`apps/desktop/overlay.html`，并由 `electron.vite.config.ts` 的 renderer input 显式注册。
 
-下游看，`apps/cli` 面向终端用户或自动化脚本，最终通过 HTTP/TRPC/WebSocket 与 LobeHub 服务通信；`apps/desktop` 面向桌面用户，同时作为“本地能力执行端”，把文件系统、Shell、截图、MCP、Git、CLI agent 等本机能力开放给 LobeHub；`apps/device-gateway` 位于云端和桌面端之间，远端服务调用它的 `/api/device/*`，它再把请求转成 WebSocket 消息发给在线桌面端。
+CLI 的命令入口是 `apps/cli/src/index.ts` 与 `apps/cli/src/program.ts`。其中 `program.ts` 创建 commander `Command`，设置名称、描述、版本，然后逐个调用 `registerLoginCommand`、`registerConnectCommand`、`registerDocCommand`、`registerAgentCommand`、`registerModelCommand`、`registerPluginCommand` 等注册函数。想理解“一个 CLI 命令如何挂进去”，优先从 `createProgram()` 看起，再跳到 `apps/cli/src/commands/*`。
 
-根 `package.json` 中有 `dev:desktop`、`desktop:build:main`、`desktop:package:*` 等脚本，说明 Desktop 是被根工作流显式编排的。根 `workspaces` 包含 `apps/desktop/src/main`，而 `apps/cli`、`apps/device-gateway` 各自有独立 `package.json` 和运行脚本；根据当前片段推断，它们更像相对独立的发布/部署单元，而不是主 Web 构建的一部分。
+device-gateway 的服务入口是 `apps/device-gateway/src/index.ts`。它创建 `Hono` app，暴露 `/health` 健康检查、`/ws` 桌面 WebSocket 连接入口，以及 `/api/device/*` 服务端 HTTP API 入口。`package.json` 的 `dev`、`deploy` 分别对应 `wrangler dev` 和 `wrangler deploy`。
 
-## 运行/调用流程
+## 主流程位置
 
-CLI 的流程最简单：用户执行 `lh xxx`，bin 指向 `dist/index.js`；开发时可用 `bun run dev -- <command>` 直接跑 `src/index.ts`。`index.ts` 进入 `createProgram()`，`program.ts` 注册所有子命令，具体命令再调用 `src/api`、`src/auth`、`src/settings`、`src/tools` 等模块完成鉴权、请求、格式化输出或本地动作。默认服务地址是 `[URL已移除] `LOBEHUB_SERVER` 或 `lh login --server` 覆盖。
+桌面端主流程大致是：`electron-vite` 根据 `apps/desktop/electron.vite.config.ts` 分别构建 main、preload、renderer；主进程从 `apps/desktop/src/main` 启动 Electron 应用，初始化窗口、协议、菜单、模块和服务；preload 将受控能力暴露给渲染层；renderer 使用根仓库共享的 SPA 渲染配置加载桌面平台页面。配置中还可以看到对 `/popup/*`、`/overlay`、`/index.html` 的 HTML rewrite，说明桌面端有主窗口、弹窗窗口和 overlay 窗口三类渲染入口。
 
-Desktop 的流程是：`electron-vite dev/build` 启动 Electron 主进程，`src/main/index.ts` 创建 `App`；构造阶段注册协议、加载 controllers/services、初始化基础 manager；`bootstrap()` 阶段申请单实例锁、启动 IPC server、等待 `app.whenReady()`、初始化 i18n 和菜单、启动静态文件服务、注册全局快捷键、创建浏览器窗口、初始化托盘和自动更新。之后控制器接收 IPC 或协议请求，服务层处理本地文件、网关连接、搜索等实际能力。
+CLI 主流程是：`apps/cli/src/index.ts` 启动程序，`apps/cli/src/program.ts` 组装 commander 命令树，各 `apps/cli/src/commands/*` 注册具体命令，命令实现再调用 `api`、`auth`、`settings`、`tools` 等支撑模块。构建产物输出到 `dist`，发布包只包含 `dist` 和 `man`。
 
-Device Gateway 的流程是：Cloudflare Worker 接收请求；桌面端通过 `/ws?userId=...&deviceId=...` 建立 WebSocket，Durable Object 保存连接附件并要求 10 秒内认证；云端服务通过 `/api/device/status`、`/api/device/tool-call`、`/api/device/system-info`、`/api/device/agent/run` 等接口发起请求；Durable Object 选择目标在线设备，生成 `requestId` 或使用 `operationId`，把请求发到 WebSocket，等待桌面端回传响应，超时则返回 504。
+device-gateway 主流程是：客户端或服务端请求进入 Worker；`/ws` 根据 query 中的 `userId` 选择 `DEVICE_GATEWAY.idFromName("user:<userId>")` 对应的 Durable Object，并把请求转交给该对象；`/api/device/*` 先用 `SERVICE_TOKEN` 做 Bearer 鉴权，再从请求 body 读取 `userId` 并转发到同一个用户级 Durable Object。根据当前片段推断，`DeviceGatewayDO` 负责维持桌面设备连接状态和处理后续消息路由，依据是入口文件将 WebSocket 与服务 API 都转发给它。
 
-## 小白阅读顺序
+## 推荐阅读顺序
 
-1. 先看 `apps` 的一层目录，明确这里只有 `cli`、`desktop`、`device-gateway` 三个应用，不要把它和 `src/app` 混淆。
-2. 读三个 `package.json`，重点看 `name`、`scripts`、`dependencies`：这能最快判断每个应用的运行环境和边界。
-3. 读 `apps/cli/src/index.ts` 和 `apps/cli/src/program.ts`，理解 CLI 是如何用 `commander` 聚合命令的。
-4. 读 `apps/desktop/src/main/index.ts` 和 `apps/desktop/src/main/core/App.ts`，先抓生命周期，不要一开始陷入大量 controller。
-5. 再看 `apps/desktop/src/main/controllers` 和 `apps/desktop/src/main/services` 文件名，按能力域建立索引，例如 `AuthCtr`、`GatewayConnectionCtr`、`HeterogeneousAgentCtr`、`ScreenCaptureCtr`。
-6. 最后读 `apps/device-gateway/src/index.ts` 和 `DeviceGatewayDO.ts`，重点理解 Worker 路由、Durable Object 按用户分片、WebSocket 认证和请求-响应映射。
+1. 先看 `apps` 的一层目录：确认这里只包含 `cli`、`desktop`、`device-gateway` 三个应用，不要急着进入叶子文件。
+2. 阅读三个 `package.json`：`apps/desktop/package.json`、`apps/cli/package.json`、`apps/device-gateway/package.json`。它们最直接说明应用名称、运行命令、构建方式和关键依赖。
+3. 对桌面端，接着读 `apps/desktop/electron.vite.config.ts`，再进入 `apps/desktop/src/main`、`apps/desktop/src/preload`。这是理解 Electron 分层的主线。
+4. 对 CLI，先读 `apps/cli/src/program.ts`，再按命令域进入 `apps/cli/src/commands`，最后看 `api`、`auth`、`settings` 等支撑目录。
+5. 对设备网关，先读 `apps/device-gateway/src/index.ts`，再读 `apps/device-gateway/src/DeviceGatewayDO.ts` 和 `apps/device-gateway/src/auth.ts`。
+6. 如果要联系主产品能力，再回到根目录的 `src/spa`、`src/routes`、`src/server`、`packages/*`，因为 `apps` 很多能力是应用壳层，真实业务模型和共享协议通常在这些目录里。
 
 ## 常见误区
 
-第一，`apps/desktop` 不是主 Web SPA 的源码目录。它是 Electron 壳和本机能力层，渲染内容可能加载本地/远端 LobeHub 页面，但窗口、IPC、协议、托盘、更新等都在这里处理。
+第一个误区是把 `apps/desktop` 当成完整前端页面实现。桌面端确实有 renderer HTML 入口，但大量页面和共享渲染能力来自根仓库 SPA 配置与共享包；`apps/desktop` 更偏 Electron 壳、主进程、本地能力和打包配置。
 
-第二，`apps/cli` 不是简单脚本集合。它有正式 npm 包名、bin、man page、测试和构建流程，并且命令覆盖 agent、bot、知识库、文件、异构 agent、迁移等复杂场景。
+第二个误区是只看 `apps/desktop/src/main`，忽略 `preload`。Electron 应用的安全边界通常在 preload，渲染层不能随意直接访问 Node/Electron 能力，主进程能力需要通过桥接暴露。
 
-第三，`apps/device-gateway` 不是普通 REST API。它的核心是 Durable Object 中的长连接状态：HTTP 接口只是入口，真正的设备在线状态和 RPC 转发依赖 WebSocket 和 `pendingRequests`。
+第三个误区是把 `apps/cli/src/commands` 看成孤立脚本集合。实际上 `apps/cli/src/program.ts` 是命令树汇总点，命令之间共享认证、配置、API client、工具函数和 e2e 测试框架。新增或排查命令时，应同时检查注册入口和支撑模块。
 
-第四，不要把 `src/app` 和 `apps` 混为一谈。`src/app` 是 Next.js App Router / 后端 API 结构；`apps` 是 monorepo 下的独立应用产物。
+第四个误区是把 `device-gateway` 理解成普通 REST 服务。当前片段显示它围绕 Cloudflare Durable Object 按 `userId` 分配连接对象，并同时承接 `/ws` 和 `/api/device/*` 两种入口，更像“用户设备连接网关”而不是传统业务 API。
 
-第五，阅读 Desktop 时不要从所有 controller 逐个展开。更有效的方式是先掌握 `App` 的启动顺序和 manager 分层，再按具体功能追某个 controller 到 service、IPC 或协议处理器。
+第五个误区是认为 `apps` 是主项目所有运行入口。根项目还有 Next.js / SPA 的入口和大量 package 级构建入口；`apps` 只覆盖 CLI、Desktop、Device Gateway 这些独立应用形态。

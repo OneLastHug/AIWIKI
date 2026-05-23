@@ -2,71 +2,76 @@
 
 ## 它负责什么
 
-`apps/desktop/src/main` 是 LobeHub Desktop 的 Electron 主进程代码区，承担“桌面壳”的核心职责：应用生命周期、窗口管理、系统权限、原生菜单/托盘/快捷键、IPC 服务端、协议处理、本地文件访问、自动更新、工具检测、MCP/异构 Agent 等桌面能力都从这里发起或注册。
+`apps/desktop/src/main` 是 LobeHub Desktop 的 Electron Main Process 代码区，负责桌面端应用的进程生命周期、系统能力接入、窗口管理、托盘菜单、全局快捷键、自定义协议、IPC 服务端、更新器、文件访问、CLI 嵌入、屏幕捕获、MCP/工具探测等偏“原生桌面”的能力。
 
-入口非常薄：`apps/desktop/src/main/index.ts` 只做三件事：引入 `fix-path` 修正桌面应用里的 `PATH`，创建 `new App()`，然后调用 `app.bootstrap()`。真正的组织者是 `core/App.ts`。它在构造阶段创建一组 Manager，加载 controller/service，注册自定义协议；在 `bootstrap()` 阶段等待 Electron ready、启动 IPC、初始化窗口、菜单、托盘、快捷键、更新器等运行时能力。
+它不是普通 React 页面目录。桌面渲染层主要复用 `src/` 下的 Web/SPA 代码，`apps/desktop/src/preload` 负责把受控 API 暴露给 renderer，而这里的 `main` 是 Electron 主进程的调度中心：创建窗口、注册系统事件、处理 renderer 发来的 IPC 调用，并把业务请求分发到各类 controller、service、manager 或 module。
 
-这个目录不是 React 页面层，也不是业务 UI 层。渲染进程仍主要复用仓库根部的 `src/` SPA 代码；`main` 更像原生能力后端，负责把系统 API 包装成 renderer 可调用的能力。
+## 直接子目录地图
 
-## 关键组成
+`apps/desktop/src/main/core` 是核心运行框架，包含 `App.ts`、窗口管理、基础设施 manager、UI manager。这里是理解启动流程、浏览器窗口、协议、存储、i18n、更新、快捷键、托盘的主入口。
 
-直接结构大致可以分为几类。
+`apps/desktop/src/main/controllers` 是 IPC controller 层。每个 `*Ctr.ts` 通常代表一组 renderer 可调用的桌面能力，例如 `AuthCtr.ts`、`BrowserWindowsCtr.ts`、`McpCtr.ts`、`ShellCommandCtr.ts`、`ScreenCaptureCtr.ts`、`UpdaterCtr.ts`。`controllers/index.ts` 提供 `ControllerModule`、`IpcMethod`、快捷键和协议装饰器；`controllers/registry.ts` 汇总 controller 构造器与类型。
 
-`core/` 是主进程骨架。`core/App.ts` 是总入口类；`core/browser/BrowserManager.ts` 负责创建、查找、聚焦、广播和关闭 Electron 窗口；`core/infrastructure/` 下按名称推断承载 `StoreManager`、`ProtocolManager`、`RendererUrlManager`、`StaticFileServerManager`、`LocalFileProtocolManager`、`UpdaterManager`、`I18nManager`、`ToolDetectorManager` 等基础设施；`core/ui/` 下则是菜单、快捷键、托盘这类 UI 外壳管理。
+`apps/desktop/src/main/services` 是主进程内的 service 层，当前能看到文件服务、搜索服务、gateway 连接服务等。它比 controller 更偏可复用业务能力，controller 可通过 `app.getService(...)` 取用。
 
-`controllers/` 是 renderer 调主进程的主要入口。每个 `*Ctr.ts` 通常继承 `ControllerModule`，定义静态 `groupName`，再用 `@IpcMethod()` 暴露方法。例如 `SystemCtr.ts` 的 `groupName = 'system'`，方法会变成 `system.getAppState`、`system.openExternalLink`、`system.updateLocale` 等 IPC channel。`controllers/index.ts` 提供 `ControllerModule`、`IpcMethod`、`shortcut`、`createProtocolHandler` 等装饰器和基类；`controllers/registry.ts` 则把 controller 列成 `controllerIpcConstructors`，用于导出类型 `DesktopIpcServices`。
+`apps/desktop/src/main/modules` 放相对独立的功能模块，例如 `cliEmbedding`、`heterogeneousAgent`、`networkProxy`、`openInApp`、`screenCapture`、`toolDetectors`、`updater`。这些模块不是统一入口层，而是供 `App`、controller 或 manager 调用的功能实现区。
 
-`utils/ipc/` 是 IPC 注册机制。`IpcMethod()` 把方法元数据挂到类上；`IpcService` 构造时读取这些元数据，并通过 Electron `ipcMain.handle(channel, handler)` 注册调用。channel 规则是 `${groupName}.${methodName}`。`AsyncLocalStorage` 保存当前 IPC 上下文，方便方法内部知道调用来源 `event.sender`。
+`apps/desktop/src/main/menus` 保存菜单定义与实现，和 `core/ui/MenuManager.ts` 配合，负责应用菜单、上下文菜单或托盘菜单相关逻辑。
 
-`services/` 是主进程内部服务基类和若干服务模块。`ServiceModule` 只保存 `app` 引用，具体服务如 `fileSrv.ts`、`contentSearchSrv.ts`、`gatewayConnectionSrv.ts` 给 controller 或 manager 复用。它们不是 renderer 直接访问的前端 service；前端侧 service 位于根目录 `src/services/electron/`。
+`apps/desktop/src/main/libs` 根据当前片段推断是第三方或协议集成的封装区，依据是其下有 `acp`、`mcp` 子目录，且主进程 controller 中存在 `McpCtr.ts`、`McpInstallCtr.ts`。
 
-`modules/` 放更大块的桌面功能模块，比如 `heterogeneousAgent`、`contentSearch`、`fileSearch`、`networkProxy`、`cliEmbedding`、`screenCapture`、`toolDetectors`、`updater`、`openInApp`。这些通常被 `App`、controller 或 manager 组合使用。比如 `App` 会注册内置 tool detector，并调用 `generateCliWrapper()` 生成终端可用的 CLI wrapper。
+`apps/desktop/src/main/const` 保存主进程常量，例如目录、环境、协议、store、theme。
 
-`appBrowsers.ts` 定义窗口配置。`appBrowsers` 里有主窗口 `app` 和 `devtools` 窗口；`windowTemplates` 里有可多开的 `chatSingle`、`topicPopup` 模板。`BrowserManager` 根据这些配置创建实际 `BrowserWindow`，并处理 topic popup、quick chat popup 等多窗口场景。
+`apps/desktop/src/main/types` 保存主进程局部类型，例如 protocol、store 类型。
 
-`const/`、`types/`、`locales/`、`menus/`、`libs/`、`__mocks__/` 分别提供常量、类型、本地化资源、菜单实现、底层库集成和测试 mock。`package.json` 暴露包名 `@lobehub/desktop-ipc-typings`，其导出指向 `exports.d.ts`；`exports.ts` 只导出 `DesktopIpcServices` 类型，给 renderer/preload 获得类型化 IPC 形状。
+`apps/desktop/src/main/utils` 是通用工具层，包含文件系统、git、HTTP headers、日志、MIME、网络 fetch、路径、权限、协议和 IPC 工具。
 
-## 上下游关系
+`apps/desktop/src/main/locales` 是主进程 i18n 资源。它和 `core/infrastructure/I18nManager.ts` 相关。
 
-上游启动来自 Electron main entry。构建后的桌面应用启动 `apps/desktop/src/main/index.ts`，进而进入 `App`。`App` 依赖 Electron 的 `app`、`protocol`、`nativeTheme`，也依赖项目内的 manager、controller、service 和模块。
+`apps/desktop/src/main/__mocks__`、各层 `__tests__` 是测试与 mock 支撑，不是运行时主流程的一部分。
 
-下游主要有三类。
+## 关键入口
 
-第一类是 Electron 原生 API：`BrowserWindow`、`ipcMain`、`dialog`、`shell`、`nativeTheme`、`protocol`、全局快捷键、托盘、菜单、自动更新等。`SystemCtr.ts` 中的权限检查、文件夹选择、打开外链、读取系统路径都是典型例子。
+最顶层入口是 `apps/desktop/src/main/index.ts`。它做的事很少：导入 `fix-path`，创建 `new App()`，然后调用 `app.bootstrap()`。因此阅读主进程时不要在 `index.ts` 停留太久，核心都在 `apps/desktop/src/main/core/App.ts`。
 
-第二类是 renderer/preload。renderer 不能直接碰主进程 API，而是通过 preload 暴露的 IPC 客户端调用。调用方示例包括 `src/utils/electron/ipc.ts` 的 `ensureElectronIpc()`，以及 `src/services/electron/system`、`src/routes/(desktop)/desktop-onboarding/...`、`src/features/Electron/...` 等。比如 onboarding 会调用 `ipc.system.getAppState()`、`ipc.system.getMediaAccessStatus()`、`ipc.system.requestScreenAccess()`；路由拦截会调用 `system.openExternalLink` 打开外部链接。
+`apps/desktop/src/main/core/App.ts` 是总装配器。构造函数阶段会初始化 `StoreManager`、`RendererUrlManager`、`LocalFileProtocolManager`，注册 Electron privileged protocol scheme，动态加载 `controllers/*Ctr.ts` 和 `services/*Srv.ts`，创建 IPC server 事件表，然后初始化 `I18nManager`、`BrowserManager`、`MenuManager`、`UpdaterManager`、`ShortcutManager`、`TrayManager`、`StaticFileServerManager`、`ProtocolManager`、`ToolDetectorManager`、`ScreenCaptureManager` 等核心对象。
 
-第三类是主进程内部模块互相协作。`App` 持有 `StoreManager`、`BrowserManager`、`I18nManager` 等实例，并把自身传给 controller/service。controller 内部可通过 `this.app.browserManager`、`this.app.storeManager`、`this.app.i18n` 访问全局能力。例如 `SystemCtr.updateLocale()` 会写 store、切换 i18n，并通过 `browserManager.broadcastToAllWindows('localeChanged', { locale })` 通知所有窗口。
+`apps/desktop/src/main/controllers/index.ts` 是 controller 模式的关键定义。`ControllerModule` 继承 `IpcService`，每个 controller 接收 `App` 实例；`IpcMethod` 用于声明 IPC 方法；`shortcut(...)` 和 `createProtocolHandler(...)` 会把 controller 方法登记到 `IoCContainer`，随后由 `App.addController` 收集到快捷键表或协议处理表。
 
-## 运行/调用流程
+`apps/desktop/src/main/controllers/registry.ts` 是类型和服务集合的显式注册表。需要注意：`App.ts` 运行时使用 `import.meta.glob('@/controllers/*Ctr.ts', { eager: true })` 动态加载 controller；`registry.ts` 则更像是类型汇总和 IPC client 类型生成/约束的中心。两者角色相近但不完全等价。
 
-应用启动时，`index.ts` 调用 `fixPath()`，再执行 `app.bootstrap()`。`App` 构造函数先打印系统信息，扩展 `PATH`，创建 `StoreManager`、`RendererUrlManager`、`LocalFileProtocolManager`，并注册 `lobehub` 自定义协议、renderer loader 协议、本地文件协议等 privileged scheme。
+## 主流程位置
 
-随后 `App` 通过 `import.meta.glob('@/controllers/*Ctr.ts', { eager: true })` 自动加载所有 controller 类，并逐个 `addController()`。这里会实例化 controller，收集 `@shortcut` 和 `createProtocolHandler` 注册的元数据。接着类似地加载 `services/*Srv.ts`，再初始化 IPC server、i18n、browser、menu、updater、shortcut、tray、static file server、protocol、tool detector、screen capture 等 manager。
+启动主流程在 `apps/desktop/src/main/index.ts` 到 `apps/desktop/src/main/core/App.ts` 的 `bootstrap`。流程大致是：修复 PATH，构造 `App`，申请单实例锁，启动 `ElectronIPCServer`，执行 `makeAppReady()`，生成 CLI wrapper，初始化 i18n、菜单、静态文件服务、全局快捷键、浏览器窗口、托盘、更新器，最后处理 pending protocol URL。
 
-`bootstrap()` 阶段先用 `app.requestSingleInstanceLock()` 保证单实例；启动 `ElectronIPCServer`；调用 `makeAppReady()`，其中 controller 的 `beforeAppReady()` 会在 `app.whenReady()` 前运行，`afterAppReady()` 会在 ready 后运行。之后初始化 i18n、菜单、静态文件服务、快捷键、窗口、托盘、更新器，并注册 `window-all-closed`、`activate` 等生命周期事件。
+窗口主流程在 `apps/desktop/src/main/core/browser`。`BrowserManager.ts` 管多窗口创建和显示，`Browser.ts` 更接近单个窗口封装，`WindowStateManager.ts` 管窗口尺寸位置状态，`WindowThemeManager.ts` 处理窗口主题。`App.bootstrap()` 中的 `browserManager.initializeBrowsers()` 是桌面窗口真正进入可见状态的重要位置。
 
-renderer 发起调用时，流程通常是：React 组件或前端 service 调用 `ensureElectronIpc().system.getAppState()`；preload/IPC 客户端把它转换成 `ipcRenderer.invoke('system.getAppState')`；主进程 `IpcService` 已经通过 `ipcMain.handle('system.getAppState', ...)` 注册处理器；最终执行 `SystemCtr.getAppState()`，返回平台、架构、locale、用户目录等数据。窗口事件或状态变化则反向通过 `BrowserManager.broadcastToAllWindows()` 发送给 renderer。
+IPC 主流程在 `apps/desktop/src/main/controllers`、`apps/desktop/src/main/utils/ipc` 和 `App.initializeServerIpcEvents()`。从 renderer 发起的调用经 preload 暴露的 IPC API 进入 main process，再分发到对应 controller 方法。新增桌面能力通常从 controller 入手，而不是直接改 renderer。
 
-## 小白阅读顺序
+协议和资源加载主流程在 `core/infrastructure`。`RendererUrlManager.ts` 决定开发/生产环境加载 renderer 的 URL 策略；`ProtocolManager.ts` 处理自定义协议分发；`LocalFileProtocolManager.ts` 负责本地文件协议；`StaticFileServerManager.ts` 管本地静态文件服务。`App` 构造阶段会先配置和注册协议，`bootstrap` 后期再处理待处理的协议 URL。
 
-1. 先读 `apps/desktop/src/main/index.ts`，建立“入口很薄，核心在 `App`”的直觉。
-2. 再读 `apps/desktop/src/main/core/App.ts`，重点看 constructor 和 `bootstrap()`，理解初始化顺序。
-3. 读 `apps/desktop/src/main/controllers/index.ts` 和 `apps/desktop/src/main/utils/ipc/base.ts`，搞清楚 `@IpcMethod()` 如何变成 IPC channel。
-4. 读一个简单 controller，比如 `controllers/SystemCtr.ts`，观察主进程如何封装系统 API。
-5. 读 `appBrowsers.ts` 和 `core/browser/BrowserManager.ts`，理解主窗口、devtools、popup 窗口怎么创建和复用。
-6. 最后按兴趣进入 `modules/`：想看 Agent/CLI/MCP/搜索/截图/更新时，再读对应模块，不要一开始就展开全部。
+系统 UI 主流程在 `apps/desktop/src/main/core/ui` 与 `apps/desktop/src/main/menus`。菜单由 `MenuManager` 初始化，全局快捷键由 `ShortcutManager` 初始化，托盘由 `TrayManager` 和 `Tray.ts` 管理。
+
+功能扩展主流程多在 `apps/desktop/src/main/modules`。例如工具检测在 `modules/toolDetectors` 定义 detector，`App.registerBuiltinToolDetectors()` 统一注册到 `ToolDetectorManager`；更新相关实现分散在 `modules/updater` 与 `core/infrastructure/UpdaterManager.ts`；屏幕捕获同时有 `modules/screenCapture` 和 `ScreenCaptureCtr.ts`。
+
+## 推荐阅读顺序
+
+1. 先读 `apps/desktop/src/main/index.ts`，确认主入口只有 `App.bootstrap()`。
+2. 再读 `apps/desktop/src/main/core/App.ts`，重点看 constructor、`bootstrap`、`makeAppReady`、`addController`、`initializeServerIpcEvents`。
+3. 接着读 `apps/desktop/src/main/controllers/index.ts` 和 `apps/desktop/src/main/controllers/registry.ts`，理解 controller、IPC、快捷键、协议 handler 的组织方式。
+4. 然后按主流程读 `apps/desktop/src/main/core/browser`、`apps/desktop/src/main/core/infrastructure`、`apps/desktop/src/main/core/ui`。
+5. 最后根据具体能力跳到 `controllers/*Ctr.ts` 与 `modules/*`，例如想看屏幕捕获就读 `ScreenCaptureCtr.ts`、`modules/screenCapture`；想看 MCP 就读 `McpCtr.ts`、`McpInstallCtr.ts`、`libs/mcp`。
 
 ## 常见误区
 
-不要把 `apps/desktop/src/main` 当成前端页面目录。它运行在 Electron main process，不能直接使用 React hooks，也不应该写页面 UI。真正页面和业务 UI 多在根目录 `src/routes`、`src/features`、`src/services`。
+不要把 `apps/desktop/src/main` 当作 UI 页面目录。它运行在 Electron 主进程，不能直接使用 React hooks 或浏览器 DOM API；UI 页面主要在 renderer 侧。
 
-不要以为 `controllers/registry.ts` 就是运行时唯一注册来源。根据当前片段可见，`App` 运行时使用 `import.meta.glob('@/controllers/*Ctr.ts')` 自动加载 controller；`registry.ts` 更明显的作用是维护 `DesktopIpcServices` 类型导出，让 renderer 获得类型化 IPC 服务形状。因此新增 controller 时既要考虑运行时文件命名 `*Ctr.ts`，也要考虑类型注册是否同步。
+不要只改 `controllers/registry.ts` 就以为完成运行时注册。根据当前片段，`App.ts` 运行时通过 `import.meta.glob('@/controllers/*Ctr.ts')` 自动加载 `*Ctr.ts`，而 `registry.ts` 更偏类型汇总。新增 controller 时通常还要关注 IPC 类型、preload/renderer service 是否能访问到。
 
-不要绕过 `@IpcMethod()` 手写零散 `ipcMain.handle`。该目录已经形成了 `ControllerModule` + `IpcMethod` + `groupName` 的统一模式，channel 命名、类型推导、上下文保存都依赖这套结构。
+不要绕过 `ControllerModule`、`IpcMethod`、service/manager 体系直接在入口里堆逻辑。这个目录的架构是 `App` 负责装配，controller 负责 IPC 边界，service/module/manager 负责具体能力。
 
-不要在 controller 中直接假设主窗口一定存在。很多方法会通过 `this.app.browserManager.getMainWindow()?.browserWindow` 取窗口，再传给 `dialog`；窗口初始化顺序、Linux/macOS/Windows 生命周期差异都可能影响行为。
+不要忽略 `beforeAppReady` 和 `afterAppReady` 的时机。Electron 的很多能力必须在 `app.whenReady()` 前或后注册，例如 protocol、command line switch、globalShortcut、window 初始化各有时序要求。
 
-不要混淆主进程 service 和 renderer service。`apps/desktop/src/main/services/*Srv.ts` 是主进程内部服务；`src/services/electron/*` 是前端调用 IPC 的包装层。两者同名“service”，但运行环境和职责不同。
+不要把协议、静态文件服务、本地文件协议混为一谈。`RendererUrlManager`、`ProtocolManager`、`LocalFileProtocolManager`、`StaticFileServerManager` 分别处理不同层面的加载与访问问题，排查资源加载问题时应先定位是哪一类路径。
 
-不要忽略协议和本地文件安全边界。`LocalFileProtocolManager` 会维护允许访问的 workspace roots；`SystemCtr.selectFolder()` 选择目录后会 approve root 并写入 store。这说明本地文件预览不是任意路径裸放给 renderer，而是经过主进程授权管理。
+不要在主进程能力里假设所有平台行为一致。`App.ts` 已经区分 Windows、Linux、macOS 的退出、dock、托盘等行为；新增桌面功能时需要考虑平台差异。

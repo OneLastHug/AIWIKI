@@ -2,84 +2,72 @@
 
 ## 它负责什么
 
-`src/features` 是 LobeHub 前端 SPA 的“业务功能层”。它位于 `src/routes` 和更底层的 `src/store`、`src/services`、`src/server` 之间，主要承载可复用的业务 UI、页面级功能块、局部状态、领域 hooks、弹窗、面板、编辑器、聊天输入、会话渲染、资源管理、插件/MCP、Electron 桥接等能力。
+`src/features` 是 LobeHub 前端业务能力的主要承载层，位于 `src/routes` 与底层 `src/store`、`src/services`、`src/components` 之间。它不是单纯的基础组件库，而是按业务域组织的“功能模块层”：会话、输入框、导航、任务、页面编辑、资源管理、插件、用户、设置、Electron 桥接、移动端辅助 UI 等都在这里沉淀。
 
-从仓库约定看，`src/routes` 应保持很薄，只做路由段组合；真正复杂的页面结构和业务交互会下沉到 `src/features/<Domain>`。例如 `src/routes/(main)/page/_layout/index.tsx` 直接导出 `@/features/Pages/PageLayout`，`src/routes/(main)/task/[taskId]/index.tsx` 使用 `@/features/AgentTasks`，主布局也大量引入 `NavPanel`、`RouteMeta`、`HotkeyHelperPanel`、`Electron/*` 等 feature。
+从当前片段看，项目采用“routes thin、features thick”的分层方式：`src/routes` 下的页面段通常只负责路由壳、布局组合和少量参数衔接，实际页面主体、业务组件、局部 hooks、feature 内部 store、弹窗和面板大多放在 `src/features`。例如 `src/routes/(main)/task/[taskId]/index.tsx` 直接导出或使用 `src/features/AgentTasks`，`src/routes/(main)/page/_layout/index.tsx` 交给 `src/features/Pages/PageLayout`，主布局 `src/routes/(main)/_layout/index.tsx` 则组合 `NavPanel`、`RouteMetaBridge`、Electron 相关桥接和全局面板。
 
-因此，小白可以把 `src/features` 理解为：它不是“通用基础组件库”，也不是“数据服务层”，而是“面向具体产品功能的前端业务组件集合”。
+## 直接子目录地图
 
-## 关键组成
+这个目录规模较大，直接子目录可以按角色理解，而不是逐个叶子阅读。
 
-`src/features` 的直接子目录很多，按功能大致可以分成几类：
+会话与输入相关包括 `Conversation`、`ChatInput`、`ChatMiniMap`、`SuggestQuestions`、`TopicCanvas`、`TopicPopupGuard`。其中 `Conversation` 更像聊天主流程的聚合入口，导出 `ConversationProvider`、`ChatList`、`MessageItem`、`ChatInput`、局部 store selectors 和类型；`ChatInput` 则拆分了 `Desktop`、`Mobile`、`InputEditor`、`ActionBar`、`SendArea`、`RuntimeConfig` 等输入区能力。
 
-1. 聊天与会话核心：`Conversation`、`ChatInput`、`ChatMiniMap`、`FloatingChatPanel`、`TopicCanvas`、`SuggestQuestions`。其中 `Conversation/index.ts` 统一导出 `ConversationProvider`、局部 store、selectors、hooks、`ChatList`、`MessageItem`、`TodoProgress` 等；`ChatInput/index.ts` 导出桌面/移动输入框、输入编辑器 hook、发送按钮类型、action bar 配置等。它们是聊天页最核心的 UI 组合层。
+Agent 与任务相关包括 `AgentHome`、`AgentInfo`、`AgentSetting`、`AgentBuilder`、`AgentProfileCard`、`AgentTasks`、`AgentTaskList`、`AgentTaskManager`、`AgentDocumentsExplorer`、`AgentSkillDetail`、`AgentSkillEdit`。其中 `AgentTasks` 内部还分出 `AgentTaskDetail`、`AgentTaskList`、`CreateTaskModal`、`features`、`shared`，是任务列表、任务详情和任务路由元信息的重要聚合点。
 
-2. Agent 相关：`AgentSetting`、`AgentProfileCard`、`AgentInfo`、`AgentHome`、`AgentTasks`、`AgentTaskManager`、`AgentDocumentsExplorer`、`AgentSkillDetail`、`AgentSkillEdit`。例如 `AgentSetting` 下面拆分出 `AgentMeta`、`AgentPrompt`、`AgentPlugin`、`AgentOpening`、`AgentTTS`、`AgentDocuments` 等，并带有自己的 `store` 和 `hooks`，说明它是一个完整的 agent 设置功能域。
+页面与编辑相关包括 `Pages`、`PageExplorer`、`PageEditor`、`EditorCanvas`、`EditorModal`、`EditingPopover`、`DocumentModal`。`Pages` 负责页面路由布局和页面模块入口，`PageEditor` 负责编辑器主体、画布、Header、History、RightPanel 以及编辑器局部状态。
 
-3. 页面与文档编辑：`Pages`、`PageEditor`、`PageExplorer`、`EditorCanvas`、`EditorModal`、`DocumentModal`。`Pages/index.ts` 导出 `PageLayout`；`PageEditor/index.ts` 导出 `PageEditor` 和 `PageEditorProvider`。`PageEditor` 内部继续拆成 `Header`、`EditorCanvas`、`Copilot`、`History`、`RightPanel`、`store`，代表一个复杂编辑器功能域。
+导航与布局相关包括 `NavPanel`、`NavHeader`、`RightPanel`、`WideScreenContainer`、`MobileTabBar`、`MobileSwitchLoading`、`RouteMeta`。`NavPanel` 不只是 UI，它提供 `NavPanelPortal`、`useActiveNavKey` 等机制，让不同 route 向主导航侧栏注入当前内容。
 
-4. 导航与全局壳层：`NavPanel`、`NavHeader`、`MobileTabBar`、`RouteMeta`、`HotkeyHelperPanel`、`CommandMenu`、`RightPanel`、`WideScreenContainer`。这些 feature 经常被布局路由引用，用于构成应用框架。
+资源、文件与知识库相关包括 `ResourceManager`、`LibraryModal`、`FileViewer`、`FileTree`、`FileSidePanel`、`LocalFile`、`ExplorerTree`、`DataImporter`。这些模块连接资源页、文件预览、库创建/分配、层级树和本地文件能力。
 
-5. 资源、文件和知识库：`ResourceManager`、`LibraryModal`、`FileViewer`、`FileTree`、`FileSidePanel`、`LocalFile`、`ExplorerTree`。它们负责资源列表、文件预览、知识库选择、文件树等界面能力。
+插件、模型、工具与集成相关包括 `MCP`、`MCPPluginDetail`、`PluginDetailModal`、`PluginDevModal`、`PluginSettings`、`PluginsUI`、`PluginAvatar`、`PluginTag`、`ModelSelect`、`ModelSwitchPanel`、`ModelParamsControl`、`ServiceModel`、`ToolTag`、`SkillStore`、`SkillsList`。它们承接模型切换、插件详情、MCP 配置、技能市场与工具标签等功能。
 
-6. 插件、MCP 与工具生态：`MCP`、`MCPPluginDetail`、`PluginDetailModal`、`PluginDevModal`、`PluginSettings`、`PluginAvatar`、`PluginTag`、`PluginsUI`、`ToolTag`。这些目录通常连接插件市场、插件配置、MCP 安装/详情/评分/部署等 UI。
+用户、设置和系统辅助包括 `User`、`Setting`、`ProfileEditor`、`AuthCard`、`AvatarWithUpload`、`HotkeyHelperPanel`、`CommandMenu`、`ShareModal`、`SharePopover`、`ChangelogModal`、`AlertBanner`、`Billboard`、`Recommendations`、`DailyBrief`、`Onboarding` 等，覆盖账户面板、设置页、分享、更新提示、引导页和推荐内容。
 
-7. Electron/桌面专属能力：`Electron`、`DesktopFileMenuBridge`、`DesktopNavigationBridge`、`ProtocolUrlHandler`、`OpenInAppButton`。`Electron` 目录下有 `AuthRequiredModal`、`ScreenCapture`、`connection`、`navigation`、`system`、`titlebar`、`updater`，用于连接桌面壳能力和 SPA。
+桌面端与运行环境相关集中在 `Electron`、`DesktopFileMenuBridge`、`DesktopNavigationBridge`、`ProtocolUrlHandler`、`PWAInstall`、`OpenInAppButton`。`Electron` 下又有 `titlebar`、`system`、`navigation`、`ScreenCapture`、`HeterogeneousAgent`、`updater` 等子域，用于 Electron 外壳和 Web SPA 之间的衔接。
 
-8. 用户、认证与设置：`User`、`AuthCard`、`ProfileEditor`、`Setting`、`AvatarWithUpload`、`PlanIcon`、`Follow` 等。
+## 关键入口
 
-9. 开发与调试：`DevPanel`、`DevFeatureFlagPanel`、`AgentMockDevtools`。这些更偏内部辅助，用于查看 feature flags、metadata、缓存、mock agent 时间线等。
+多数 feature 通过目录下的 `index.ts` 或 `index.tsx` 暴露稳定入口，例如 `src/features/Conversation/index.ts`、`src/features/ChatInput/index.ts`、`src/features/PageEditor/index.ts`、`src/features/Pages/index.ts`、`src/features/AgentTasks/index.tsx`、`src/features/NavPanel/index.tsx`。
 
-`CommandMenu` 是一个文档较完整的代表。它基于 `cmdk` 做全局命令面板，包含 `index.tsx`、`useCommandMenu.ts`、`types.ts`、`components`、`MainMenu`、`SearchResults`、`ThemeMenu` 等。README 中说明它支持上下文感知、页面栈、多模式、Zustand 全局状态和 portal 渲染。
+`Conversation/index.ts` 是典型聚合入口：它导出 provider、hooks、store selectors、类型，以及 `ChatInput`、`ChatList`、`MessageItem`、`TodoProgress` 等组件。读这个文件可以快速理解会话模块对外暴露了哪些能力。
 
-## 上下游关系
+`ChatInput/index.ts` 负责输入框能力的出口，包含 `ChatInputProvider`、`DesktopChatInput`、`MobileChatInput`、`ActionKeys`、编辑器 hook 和发送按钮处理类型。它常被首页输入区、图像/视频生成输入区等复用。
 
-上游主要是 `src/routes` 和 `src/spa/router`。路由层会把具体页面或布局委托给 feature，例如 home、resource、page、task、onboarding、main layout 都通过 `@/features/...` 引用具体业务组件。`src/spa/router/desktopRouter.config.tsx` 和 `desktopRouter.config.desktop.tsx` 还会引用 `AgentTasks/routeMeta`、`Pages/routeMeta` 这类 feature 元数据。
+`NavPanel/index.tsx` 是主导航面板入口。它内部维护当前侧栏快照，默认回退到 home 侧栏，并通过 `NavPanelPortal` 允许其它页面把自己的侧栏内容挂到全局导航容器里。
 
-下游主要有四类：
+`AgentTasks/index.tsx`、`Pages/index.ts`、`PageEditor/index.ts` 则分别是任务页、页面布局/页面域、页面编辑器域的对外门面。根据当前片段推断，这些入口的作用是隐藏 feature 内部结构，让 route 层只依赖少量稳定导出；依据是 `src/routes` 中存在多处 `export { default } from '@/features/...'` 或从 feature 根入口导入页面组件的用法。
 
-第一类是状态层。很多复杂 feature 内部带局部 store，例如 `Conversation/store`、`ChatInput/store`、`AgentSetting/store`、`PageEditor/store`。这些通常用 Zustand 管理局部 UI 状态、选择状态、编辑状态，再通过 selectors 暴露给组件。
+## 主流程位置
 
-第二类是全局 store。比如 `CommandMenu/index.tsx` 使用 `useGlobalStore` 读取和关闭全局命令菜单状态；路由布局引用的 `NavPanel`、`RouteMeta` 等也可能和全局状态协作。
+主应用布局流程从 `src/routes/(main)/_layout/index.tsx` 进入，它组合 `NavPanel`、`RouteMetaBridge`、Electron 桥接、热键帮助、全局 banner 和标题栏等跨页面设施。这个文件是理解 `src/features` 如何被装配到应用壳的第一入口。
 
-第三类是服务/API 层。根据 `CommandMenu` README，它的搜索流通过 `lambdaClient.search.query.query` 请求 tRPC Lambda，并用 SWR 做数据获取。其他 feature 也常见通过 `src/services` 或 `src/server/routers` 间接访问后端。
+聊天/会话主流程主要分布在 `src/features/Conversation` 与 `src/features/ChatInput`，并由 `src/routes/(main)/home`、`src/routes/(main)/agent`、`src/routes/(mobile)/chat` 等 route 片段接入。`ConversationProvider`、`ChatList`、`MessageItem` 和输入区 provider 构成了阅读会话体验的主线。
 
-第四类是 UI 基础设施。feature 内部会使用 `@lobehub/ui`、antd、`lucide-react`、`react-i18next`、`react-router-dom`、`cmdk` 等库组合产品界面。也就是说，feature 不负责定义基础按钮/弹窗范式，但负责把基础组件拼成具体业务体验。
+任务主流程在 `src/features/AgentTasks`，路由侧对应 `src/routes/(main)/tasks/index.tsx`、`src/routes/(main)/task/[taskId]/index.tsx`，同时路由配置 `src/spa/router/desktopRouter.config.tsx`、`src/spa/router/desktopRouter.config.desktop.tsx` 引入 `taskRouteMeta`、`tasksRouteMeta`。这说明任务不仅有页面组件，也参与桌面路由元信息注册。
 
-## 运行/调用流程
+页面/文档主流程在 `src/features/Pages`、`src/features/PageExplorer`、`src/features/PageEditor`。路由侧对应 `src/routes/(main)/page/_layout/index.tsx`、`src/routes/(main)/page/index.tsx`、`src/routes/(main)/page/[id]/index.tsx`，路由配置还引入 `pageRouteMeta`。
 
-典型调用流程是：
+资源管理主流程在 `src/features/ResourceManager`、`LibraryModal`、`FileViewer` 等模块，并由 `src/routes/(main)/resource`、`src/routes/(main)/resource/library` 接入。导航侧栏和资源层级树也通过 `NavPanel` 与 `ResourceManager/components/LibraryHierarchy` 协同。
 
-用户访问某个 SPA 路径，`src/spa/router/*` 匹配到 `src/routes` 下的路由段；路由段文件保持轻量，导入 `@/features/<Domain>`；feature 组件加载自身的 provider、hooks、store、selectors 和子组件；需要数据时通过 SWR、client service 或 tRPC 请求后端；用户操作触发局部 store 或全局 store 更新，界面随之重渲染。
+桌面端流程主要在 `src/features/Electron` 及两个 bridge：`DesktopFileMenuBridge`、`DesktopNavigationBridge`。它们在主布局、popup 布局和 desktop onboarding 中被引用，是 Electron 外壳能力进入 React SPA 的位置。
 
-以聊天相关功能为例，根据当前片段推断：页面会组合 `Conversation` 和 `ChatInput`。`Conversation/index.ts` 暴露 `ConversationProvider`、`useConversationStore`、`ChatList`、`MessageItem` 等；`ChatInput/index.ts` 暴露 `ChatInputProvider`、`DesktopChatInput`、`MobileChatInput`、`useChatInputEditor` 等。这样外部页面不需要知道消息项、输入框、action bar、错误态、markdown 渲染等内部细节，只消费 feature 的入口导出。
+## 推荐阅读顺序
 
-以 `CommandMenu` 为例：用户按下快捷键后，全局 store 标记 `showCommandMenu`；`CommandMenu` 通过 portal 渲染到 `document.body`；内部 `useCommandMenu` 检测当前 `pathname`，决定展示主菜单、上下文命令、搜索结果、主题菜单或 AI 菜单；搜索文本经过 debounce 后用 SWR 调用后端搜索接口；按 `Escape`、`Backspace`、`Tab` 等键会改变页面栈或模式。
-
-## 小白阅读顺序
-
-建议先读项目分层，而不是直接扎进所有目录。
-
-1. 先看 `src/routes` 中几个薄路由如何引用 feature，例如 `src/routes/(main)/_layout/index.tsx`、`src/routes/(main)/page/_layout/index.tsx`、`src/routes/(main)/task/[taskId]/index.tsx`。目标是理解 feature 如何被页面挂载。
-
-2. 再看 `src/features/Conversation/index.ts` 和 `src/features/ChatInput/index.ts`。这两个入口能展示该目录常见模式：`index.ts` 聚合导出 provider、store、hooks、types 和组件。
-
-3. 接着读 `src/features/CommandMenu/README.md`。它是少数带完整说明的 feature，适合理解“一个完整业务功能如何拆分组件、hook、utils、types、状态和数据流”。
-
-4. 然后选一个页面型 feature，例如 `src/features/PageEditor` 或 `src/features/AgentSetting`。看它如何按 header、body、modal、store、hooks、子功能拆目录。
-
-5. 最后再按兴趣阅读专项能力：桌面端看 `Electron`，资源管理看 `ResourceManager`/`LibraryModal`/`FileViewer`，插件生态看 `MCP`/`PluginDetailModal`/`PluginsUI`。
+1. 先读 `src/routes/(main)/_layout/index.tsx`，理解主应用壳如何组合 `src/features` 中的全局设施。
+2. 再读 `src/features/NavPanel/index.tsx` 和 `src/features/RouteMeta`，掌握导航注入、当前导航态和路由元信息的组织方式。
+3. 阅读 `src/features/Conversation/index.ts`、`src/features/ChatInput/index.ts`，建立聊天主流程的总体图。
+4. 根据业务关注点选择分支：任务看 `src/features/AgentTasks`，页面编辑看 `src/features/Pages`、`src/features/PageEditor`，资源看 `src/features/ResourceManager`、`src/features/LibraryModal`、`src/features/FileViewer`。
+5. 最后看横切能力：`src/features/User`、`src/features/Setting`、`src/features/Electron`、`src/features/PluginDevModal`、`src/features/MCP`、`src/features/SkillStore`。这些模块往往被多个页面复用，适合在理解主流程后补读。
 
 ## 常见误区
 
-第一，误以为 `src/features` 是通用组件库。这里的组件大多绑定具体业务语义，例如 agent 设置、会话渲染、资源管理、页面编辑；真正更通用的基础组件通常不应随意塞进这里。
+不要把 `src/features` 当成纯 UI 组件目录。基础、无业务语义的组件更可能在 `src/components` 或外部 UI 包中；`src/features` 里的组件通常携带业务上下文、hooks、局部 store、弹窗开启逻辑或路由协作逻辑。
 
-第二，把业务逻辑写回 `src/routes`。当前架构强调 `routes` 是薄页面段，业务 UI 和交互应放在 `src/features`，否则路由树会膨胀，也会破坏复用边界。
+不要在 `src/routes` 中继续堆业务实现。当前结构明确倾向于 route 只做页面段和组合，复杂 UI 与业务逻辑应进入 `src/features/<Domain>`，再由 feature 入口导出。
 
-第三，只改一个桌面路由配置。虽然本任务目标是 `src/features`，但 feature 的页面入口经常被 `src/spa/router/desktopRouter.config.tsx` 和 `desktopRouter.config.desktop.tsx` 引用；涉及新增页面或 route meta 时，两个配置要保持同步。
+不要只改一个桌面路由配置。与 `AgentTasks`、`Pages` 相关的 route meta 同时出现在 `src/spa/router/desktopRouter.config.tsx` 和 `src/spa/router/desktopRouter.config.desktop.tsx`，这两个配置需要保持同步，否则不同构建入口可能出现路由缺失。
 
-第四，忽略 feature 内部的局部 store。像 `Conversation`、`ChatInput`、`AgentSetting`、`PageEditor` 这类目录不只是 UI 文件夹，还包含 `store`、selectors、provider、hooks。阅读时如果只看 `index.tsx`，容易漏掉真实状态流。
+不要按字母顺序逐个目录读。`src/features` 是大目录，直接从 `AgentBuilder` 一路读到 `ZenModeToast` 效率很低。更有效的方式是先从 route 引用和 feature 根 `index` 建地图，再进入目标业务域。
 
-第五，把入口导出当成全部实现。很多 feature 的 `index.ts` 只是门面，核心实现藏在子目录中，例如 `ChatInput/InputEditor`、`RuntimeConfig`、`SendArea`，`Conversation/Messages`、`Error`、`InterventionBar`，`PageEditor/Copilot`、`History` 等。应先通过入口建立地图，再进入具体子模块。
-
-第六，忽视平台差异。`ChatInput` 同时导出 `Desktop` 和 `Mobile`，`Electron` 目录只服务桌面能力，`ProtocolUrlHandler`、`DesktopFileMenuBridge` 等也和运行环境有关。修改或学习时要先确认当前功能在哪个平台生效。
+不要忽略 feature 内部的 `store`、`hooks`、`shared`、`components` 子目录。它们通常表示该 feature 已经形成相对完整的局部边界；但也不要把这些局部 store 与全局 `src/store` 混淆，前者多服务于单一功能域，后者承载跨页面应用状态。

@@ -24,6 +24,7 @@ from _common import (
     init_state_db,
     render_progress_json_from_db,
     safe_debug_name,
+    sanitize_markdown_text,
     set_stage_status,
     strip_codex_output,
     task_counts,
@@ -32,13 +33,31 @@ from _common import (
 )
 from local_fallback import is_codex_unavailable_output, task_fallback_markdown
 
-REQUIRED_HEADINGS = [
+DIRECTORY_OVERVIEW_HEADINGS = [
     "## 它负责什么",
-    "## 关键组成",
-    "## 上下游关系",
-    "## 运行/调用流程",
-    "## 小白阅读顺序",
+    "## 直接子目录地图",
+    "## 关键入口",
+    "## 主流程位置",
+    "## 推荐阅读顺序",
     "## 常见误区",
+]
+DIRECTORY_STANDARD_HEADINGS = [
+    "## 解决什么问题",
+    "## 相关目录和文件",
+    "## 核心对象",
+    "## 运行流程",
+    "## 上下游依赖",
+    "## 修改时最容易踩的坑",
+    "## 推荐阅读顺序",
+]
+FILE_DEEP_HEADINGS = [
+    "## 一句话定位",
+    "## 它暴露/定义了什么",
+    "## 谁调用它",
+    "## 它调用谁",
+    "## 核心流程",
+    "## 关键函数的高层作用",
+    "## 修改风险",
 ]
 
 stop_event: asyncio.Event | None = None
@@ -49,36 +68,76 @@ codex_unavailable_seen = False
 
 def build_prompt(repo: Path, task: dict[str, Any]) -> str:
     rel = task["rel_path"]
-    kind_cn = "目录" if task["kind"] == "directory" else "文件"
-    title = f"# {kind_cn}：{rel}"
+    kind = task["kind"]
+    depth = str(task.get("doc_depth") or ("deep" if kind == "file" else "standard"))
+    kind_cn = "目录" if kind == "directory" else "文件"
+    url_note = "不要输出真实网址；如必须提到链接、仓库地址或外部服务地址，请写成 `[URL已移除]`。"
+
+    if kind == "directory" and depth == "overview":
+        title = f"# 目录：{rel}"
+        guidance = f"""- 只做地图式概览，不逐文件展开。
+- 重点说明这个目录下面有什么子目录、关键入口和主流程位置。
+- 文档控制在 1200-2200 中文字左右。
+- 如果这里是大目录，只讲路径角色，不要把每个叶子都解释一遍。"""
+        sections = DIRECTORY_OVERVIEW_HEADINGS
+    elif kind == "directory":
+        title = f"# 子系统：{rel}"
+        guidance = f"""- 这是子系统级页面，不是文件清单。
+- 重点解释这个目录负责什么、相关目录文件、核心对象和上下游依赖。
+- 不要逐行解释源码，也不要把所有叶子目录都铺开。
+- 文档控制在 900-1600 中文字左右。"""
+        sections = DIRECTORY_STANDARD_HEADINGS
+    else:
+        title = f"# 文件：{rel}"
+        guidance = f"""- 这是关键文件页，不要逐行解释。
+- 只讲高层职责、谁调用它、它调用谁、核心流程和修改风险。
+- 核心函数可以解释，辅助函数一句带过，样板函数不需要展开。
+- 文档控制在 700-1300 中文字左右。"""
+        sections = FILE_DEEP_HEADINGS
+
+    section_text = "\n".join(sections)
     return f"""你是 AIWIKI 的源码学习文档作者。现在只处理一个任务，读取仓库上下文后输出这个目标的中文学习文档。
 
 仓库根目录：{repo}
 目标类型：{kind_cn}
 目标相对路径：{rel}
 目标绝对路径：{task["abs_path"]}
+文档深度：{depth}
 
 执行要求：
 - 你可以读取目标路径和必要的邻近上下文，但不要修改仓库文件。
 - 每个任务最多执行 6 个 shell 命令。
-- 文件任务：优先完整阅读目标文件；再查看同目录 index/types/provider/service/config；必要时查 1-2 个调用方。
-- 目录任务：先列出直接子目录/文件；再查看 README/package/index/router/config 等入口；必要时抽样 1-2 个代表文件。
-- 如果目标是 `src`、`packages`、`apps`、`src/server`、`src/routes`、`src/features`、`src/store` 等大目录，只做地图式概览，控制在 1200-2200 中文字左右。
-- 具体文件或小目录要解释 import/export、调用方、核心逻辑和上下游关系。
+- {guidance}
 - 中文为主，路径、函数名、类名、包名、命令保留英文。
 - 如果证据不足，写“根据当前片段推断”，并说明依据。
 - 不要把本地源码路径写成 Markdown 链接；不要输出 `[path](/data/project/...:1)`、`[path](path.ts:1)` 这类引用。源码引用只写反引号代码路径，例如 `src/app/(backend)/api/version/route.ts`。多个路径之间用中文顿号、逗号或分号隔开，路径前后保留正常文字间隔，避免粘连。
+- {url_note}
 - 最终只输出 Markdown 正文，不要输出命令执行过程，不要寒暄。
 
 必须包含这些章节：
 {title}
-## 它负责什么
-## 关键组成
-## 上下游关系
-## 运行/调用流程
-## 小白阅读顺序
-## 常见误区
+{section_text}
 """
+
+
+def required_headings_for(task: dict[str, Any]) -> tuple[list[str], int]:
+    kind = task["kind"]
+    depth = str(task.get("doc_depth") or ("deep" if kind == "file" else "standard"))
+    if kind == "directory" and depth == "overview":
+        return DIRECTORY_OVERVIEW_HEADINGS, 1000
+    if kind == "directory":
+        return DIRECTORY_STANDARD_HEADINGS, 900
+    return FILE_DEEP_HEADINGS, 700
+
+
+def validate_task_markdown(task: dict[str, Any], text: str) -> tuple[bool, str]:
+    headings, min_chars = required_headings_for(task)
+    return validate_markdown(
+        sanitize_markdown_text(text),
+        min_chars=min_chars,
+        required_headings=headings,
+        must_contain=task["rel_path"],
+    )
 
 
 def register_worker(out: Path, run_id: str, worker_id: str) -> None:
@@ -357,15 +416,10 @@ async def run_one(repo: Path, out: Path, task: dict[str, Any], timeout: int) -> 
         atomic_write_text(raw_path, "Codex skipped because local fallback is active.\n")
         candidate = task_fallback_markdown(repo, task, "Codex CLI unavailable; using local fallback for remaining tasks")
         atomic_write_text(candidate_path, candidate)
-        ok, reason = validate_markdown(
-            candidate,
-            min_chars=650 if task["kind"] == "directory" else 550,
-            required_headings=REQUIRED_HEADINGS,
-            must_contain=task["rel_path"],
-        )
+        ok, reason = validate_task_markdown(task, candidate)
         if not ok:
             return False, "local fallback validation failed: " + reason
-        atomic_write_text(final_path, candidate.strip() + "\n")
+        atomic_write_text(final_path, sanitize_markdown_text(candidate).strip() + "\n")
         return True, "local fallback"
     code, raw, timed_out = await run_codex_async(repo, prompt, candidate_path, timeout)
     atomic_write_text(raw_path, raw)
@@ -377,15 +431,10 @@ async def run_one(repo: Path, out: Path, task: dict[str, Any], timeout: int) -> 
             reason_text = strip_codex_output(raw)[-500:] or "Codex CLI unavailable"
             candidate = task_fallback_markdown(repo, task, reason_text)
             atomic_write_text(candidate_path, candidate)
-            ok, reason = validate_markdown(
-                candidate,
-                min_chars=650 if task["kind"] == "directory" else 550,
-                required_headings=REQUIRED_HEADINGS,
-                must_contain=task["rel_path"],
-            )
+            ok, reason = validate_task_markdown(task, candidate)
             if not ok:
                 return False, "local fallback validation failed: " + reason
-            atomic_write_text(final_path, candidate.strip() + "\n")
+            atomic_write_text(final_path, sanitize_markdown_text(candidate).strip() + "\n")
             return True, "local fallback after Codex unavailable"
         return False, f"codex exited with {code}: {strip_codex_output(raw)[-1000:]}"
 
@@ -395,16 +444,11 @@ async def run_one(repo: Path, out: Path, task: dict[str, Any], timeout: int) -> 
     if not candidate:
         candidate = strip_codex_output(raw)
 
-    ok, reason = validate_markdown(
-        candidate,
-        min_chars=650 if task["kind"] == "directory" else 550,
-        required_headings=REQUIRED_HEADINGS,
-        must_contain=task["rel_path"],
-    )
+    ok, reason = validate_task_markdown(task, candidate)
     if not ok:
         atomic_write_text(candidate_path, candidate)
         return False, "validation failed: " + reason
-    atomic_write_text(final_path, candidate.strip() + "\n")
+    atomic_write_text(final_path, sanitize_markdown_text(candidate).strip() + "\n")
     return True, "ok"
 
 

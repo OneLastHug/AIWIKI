@@ -23,6 +23,7 @@ STATE_FILES = {
     "partial": "pipeline.partial",
     "failed": "pipeline.failed",
 }
+MARKDOWN_URL_RE = re.compile(r"(?i)(?:https?://|git@github\.com:)[^\s<>()\[\]{}\"']+")
 
 
 def utc_ts() -> float:
@@ -148,6 +149,11 @@ def init_state_db(out: Path) -> None:
         con.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status_priority ON tasks(status, priority)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_tasks_run_status ON tasks(run_id, status)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_signals_run_id ON signals(run_id, id)")
+        task_columns = {row["name"] for row in con.execute("PRAGMA table_info(tasks)").fetchall()}
+        if "doc_depth" not in task_columns:
+            con.execute("ALTER TABLE tasks ADD COLUMN doc_depth TEXT DEFAULT 'deep'")
+        if "parent_summary_only" not in task_columns:
+            con.execute("ALTER TABLE tasks ADD COLUMN parent_summary_only INTEGER DEFAULT 0")
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -170,6 +176,28 @@ def atomic_write_text(path: Path, text: str) -> None:
 
 def atomic_write_json(path: Path, obj: Any) -> None:
     atomic_write_text(path, json.dumps(obj, ensure_ascii=False, indent=2) + "\n")
+
+
+def sanitize_markdown_text(text: str) -> str:
+    if not text:
+        return text
+    return MARKDOWN_URL_RE.sub("[URL已移除]", text)
+
+
+def sanitize_markdown_tree(root: Path, *, exclude_dirs: tuple[str, ...] = ("codex_debug",)) -> None:
+    root = Path(root)
+    if not root.exists():
+        return
+    for path in root.rglob("*.md"):
+        if any(part in exclude_dirs for part in path.parts):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        sanitized = sanitize_markdown_text(text)
+        if sanitized != text:
+            atomic_write_text(path, sanitized)
 
 
 def clear_terminal_state(out: Path) -> None:
@@ -326,9 +354,11 @@ def render_progress_json_from_db(out: Path, run_id: str) -> dict[str, Any]:
             (run_id,),
         ).fetchall()
         breakdown = {str(r["status"]): int(r["n"]) for r in rows}
-        total = sum(breakdown.values())
-        done = breakdown.get("done", 0)
-        failed = breakdown.get("failed", 0)
+        skipped = breakdown.get("skipped", 0)
+        active_breakdown = {k: int(breakdown.get(k, 0)) for k in ("pending", "running", "done", "failed")}
+        total = sum(active_breakdown.values())
+        done = active_breakdown.get("done", 0)
+        failed = active_breakdown.get("failed", 0)
         active_rows = con.execute(
             """SELECT worker_id, current_task, updated_at FROM workers
                WHERE run_id=? AND status='running'
@@ -366,9 +396,13 @@ def render_progress_json_from_db(out: Path, run_id: str) -> dict[str, Any]:
         "total": total,
         "percent": round(done / total * 100, 2) if total else 0,
         "failed": failed,
+        "skipped": skipped,
+        "core_done": done,
+        "core_total": total,
         "current": current,
         "updated_at": utc_ts(),
-        "unit": "目录+文件",
+        "unit": "核心文档",
+        "coverage": "认知地图生成",
         "model": run["model"] if run else MODEL,
         "reasoning": run["reasoning"] if run else TASK_REASONING,
         "timeout_seconds": int(run["timeout_seconds"]) if run and run["timeout_seconds"] is not None else DEFAULT_TIMEOUT_SECONDS,
@@ -380,7 +414,7 @@ def render_progress_json_from_db(out: Path, run_id: str) -> dict[str, Any]:
             {"worker_id": r["worker_id"], "current_task": r["current_task"], "updated_at": r["updated_at"]}
             for r in active_rows
         ],
-        "task_breakdown": breakdown,
+        "task_breakdown": {**breakdown, **active_breakdown},
     }
     atomic_write_json(out / "progress.json", progress)
     return progress

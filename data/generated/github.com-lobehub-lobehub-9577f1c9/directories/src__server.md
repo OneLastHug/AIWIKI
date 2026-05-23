@@ -2,156 +2,76 @@
 
 ## 它负责什么
 
-`src/server` 是 LobeHub 的服务端业务中枢，位于 Next.js 后端路由和数据库/外部系统之间。它不直接负责前端页面渲染，而是集中承载这些职责：
+`src/server` 是这个仓库里最核心的服务端组织区，主要承载三类东西：第一是对外暴露的服务端入口，包括 TRPC 路由、Hono API 应用、Next.js backend route 的落点；第二是业务服务层 `services`，负责把数据库、对象存储、模型运行时、分析埋点、业务开关等能力串起来；第三是通用但偏服务端的基础模块，例如模型运行时封装、加密密钥管理、S3、Agent 相关能力、工作流编排、全局配置生成等。
 
-1. 组织 tRPC 后端 API：`src/server/routers` 把不同业务域拆成 `lambda`、`async`、`mobile`、`tools` 等路由树。
-2. 封装服务端业务逻辑：`src/server/services` 按领域提供 `MessageService`、`FileService`、`TaskService`、`AgentRuntimeService` 等服务类或函数。
-3. 管理服务端配置：`globalConfig`、`featureFlags`、`runtimeConfig` 将环境变量、Redis 运行时配置、默认模型配置等整理成前端或后端可消费的结构。
-4. 提供 Agent 和 Workflow HTTP 入口：`agent-hono`、`workflows-hono` 使用 `Hono` 组织 `/api/agent/*`、`/api/workflows/*` 这类非普通 tRPC 的服务端端点。
-5. 对接底层模块和第三方能力：`modules` 放偏基础设施或能力适配，例如 `ModelRuntime`、`AgentRuntime`、`S3`、`GitHub`、`KeyVaultsEncrypt` 等。
+根据当前片段推断，这个目录的设计目标不是“单纯放工具函数”，而是把服务端执行链条拆成稳定层次：入口层负责路由和鉴权，service 层负责业务编排，module 层负责可复用基础能力，`globalConfig` 和 `runtimeConfig` 负责把环境变量、产品开关和默认配置统一输出给上层。
 
-简单说，`src/server` 是“API 编排层 + 服务端业务层 + 运行时配置层”。前端不会直接操作数据库，而是通过 `src/services` 客户端服务或 tRPC 调用进入这里，再由这里调用数据库模型、仓储、队列、对象存储、模型运行时或外部平台。
+## 直接子目录地图
 
-## 关键组成
+- `src/server/routers`：TRPC 路由聚合区，按调用场景拆成 `lambda`、`async`、`mobile`、`tools` 四组。
+- `src/server/services`：业务服务层，目录数量最多，覆盖用户、消息、任务、知识库、搜索、市场、Webhook、风险控制、Agent、工作流等领域。
+- `src/server/modules`：基础模块层，偏底层能力封装，例如 `ModelRuntime`、`S3`、`KeyVaultsEncrypt`、`AgentRuntime`、`GitHub`、`PluginStore`、`Mecha`、`AssistantStore`。
+- `src/server/workflows`：偏离线或编排式任务的工作流实现。
+- `src/server/workflows-hono`：以 Hono 组织的工作流 HTTP 入口。
+- `src/server/agent-hono`：面向 `/api/agent/*` 的 Hono 应用，聚合 agent 执行、回调、Webhook、Gateway 相关接口。
+- `src/server/globalConfig`：服务端全局配置生成与默认配置解析。
+- `src/server/runtimeConfig`：运行时配置定义与 provider 相关类型。
+- `src/server/featureFlags`：功能开关汇总。
+- `src/server/utils`：服务端辅助函数，例如 URL、临时文件、输出序列化、截断工具结果等。
+- `src/server/ld.ts`、`src/server/manifest.ts`、`src/server/metadata.ts`、`src/server/sitemap.ts`、`src/server/translation.ts`：偏站点元信息、清单、国际化或页面辅助生成逻辑。
+- `src/server/agent-hono/handlers`、`src/server/agent-hono/middlewares`：`/api/agent` 的具体处理器和鉴权中间件。
+- `src/server/workflows-hono/agent-signal`、`src/server/workflows-hono/task` 等：工作流级别的子应用。
 
-`routers` 是最明显的入口层。`src/server/routers/lambda/index.ts` 聚合了大量业务 router，例如 `agent`、`message`、`file`、`session`、`topic`、`aiAgent`、`aiChat`、`generation`、`knowledgeBase`、`market`、`usage`、`user` 等，还接入了 `@/business/server/lambda-routers/*` 中的商业化 router，如 `subscription`、`spend`、`topUp`。这说明开源核心和 cloud/business 扩展会在 server router 层合流。
+## 关键入口
 
-`src/server/routers/async/index.ts` 是异步任务相关路由，当前聚合 `document`、`file`、`image`、`ragEval`、`video`，并导出 `createAsyncCaller`、`createAsyncServerClient`。根据当前片段推断，它用于较重或异步化的处理场景，例如文档、文件、图片、视频、RAG 评测。
+这个目录的关键入口不在这里直接对外监听，而是被 Next.js backend routes 挂载：
 
-`src/server/routers/tools/index.ts` 是工具调用相关 tRPC 分组，包含 `klavis`、`market`、`mcp`、`search`。它和普通业务 API 分离，便于 Agent 或工具系统按工具域访问。
+- `src/app/(backend)/trpc/lambda/[trpc]/route.ts` 挂 `src/server/routers/lambda`。
+- `src/app/(backend)/trpc/async/[trpc]/route.ts` 挂 `src/server/routers/async`。
+- `src/app/(backend)/trpc/mobile/[trpc]/route.ts`、`src/app/(backend)/trpc/tools/[trpc]/route.ts` 分别挂对应 router。
+- `src/app/(backend)/api/agent/[[...route]]/route.ts` 挂 `src/server/agent-hono/index.ts`。
+- `src/app/(backend)/api/workflows/[[...route]]/route.ts` 挂 `src/server/workflows-hono/index.ts`。
 
-`src/server/routers/mobile/index.ts` 是移动端专用 router。它复用许多 `lambda` router，例如 `agentRouter`、`messageRouter`、`sessionRouter`、`fileRouter`，但只暴露移动端实际使用的集合，并额外接入 `mobileSubscriptionRouter`。
+从目录内看，最重要的“总入口文件”有：
 
-`services` 是业务逻辑层。以 `src/server/services/message/index.ts` 为例，`MessageService` 构造时接收 `LobeChatDatabase` 和 `userId`，内部组合 `MessageModel`、`FileService`、`CompressionRepository`。它负责“创建/更新/删除消息后是否重新查询消息列表”“文件 URL 后处理”“压缩消息组”等跨模型业务逻辑。对应的 `src/server/routers/lambda/message.ts` 则负责输入校验、鉴权中间件、注入 `serverDatabase`，然后调用 `ctx.messageService` 或 `ctx.messageModel`。
+- `src/server/routers/lambda/index.ts`：Lambda TRPC 根 router，把大量业务子 router 聚合起来。
+- `src/server/routers/async/index.ts`：异步任务类 router 聚合入口。
+- `src/server/agent-hono/index.ts`：`/api/agent/*` 的 Hono 应用入口。
+- `src/server/workflows-hono/index.ts`：`/api/workflows/*` 的 Hono 应用入口。
+- `src/server/globalConfig/index.ts`：服务端配置生成总入口。
+- `src/server/modules/ModelRuntime/index.ts`：模型运行时适配与 keyVault payload 组装的核心位置。
+- `src/server/services/user/index.ts`：用户服务的典型实现样例，能看出 service 层如何接数据库、分析和文件存储。
 
-`globalConfig` 负责生成服务端全局配置。`getServerGlobalConfig` 会读取 `appEnv`、`authEnv`、`fileEnv`、`imageEnv`、`knowledgeEnv`、`toolsEnv` 等环境配置，生成 AI Provider、默认 Agent、认证开关、文件上传、视觉理解、SSO、telemetry、systemAgent 等配置。
+## 主流程位置
 
-`featureFlags` 负责服务端功能开关。它定义 `RuntimeConfigDomain`，通过 `CompositeRuntimeConfigProvider` 组合 `RedisRuntimeConfigProvider` 和 `EnvRuntimeConfigProvider`：优先读取 Redis 发布的运行时配置，同时以环境变量作为 fallback，并支持按用户覆盖 feature flag。
+主流程可以按“请求进来以后怎么走”来理解：
 
-`runtimeConfig` 是运行时配置基础设施的导出口，当前 `index.ts` 只导出 `providers` 和 `types`。它被 `featureFlags` 等模块复用。
+1. HTTP 请求先进入 `src/app/(backend)/.../route.ts`。
+2. TRPC 请求进入 `src/server/routers/{lambda|async|mobile|tools}`，Hono 请求进入 `src/server/agent-hono` 或 `src/server/workflows-hono`。
+3. 路由层把具体业务拆给 `src/server/services/*`，例如用户、消息、任务、知识库、搜索、Agent、Webhook。
+4. service 层再调用 `src/server/modules/*` 里的基础能力，例如：
+   - `ModelRuntime` 负责模型提供方、密钥、payload 组装和运行时参数；
+   - `S3` 负责文件/头像/对象存储读写；
+   - `KeyVaultsEncrypt` 负责密钥解密或访问控制；
+   - `AgentRuntime`、`AgentTracing`、`PluginStore` 这类模块负责更底层的执行或状态封装。
+5. 需要跨请求共享的环境配置，则先由 `src/server/globalConfig`、`src/server/runtimeConfig`、`src/server/featureFlags` 整理，再被上层服务消费。
 
-`agent-hono` 是 Agent 专用 HTTP 应用。`src/server/agent-hono/index.ts` 创建 `new Hono().basePath('/api/agent')`，注册 `POST /`、`POST /run`、`POST /tool-result`、`POST /finalize-abandoned`、`GET /gateway`、`POST /gateway/start`、webhook、messenger OAuth 等路径，并挂载 `qstashAuth`、`serviceTokenAuth`、`bearerSecretAuth` 等中间件。
+如果看最能代表整条链路的两个位置：
+- `src/server/routers/lambda/index.ts` 体现“应用层总路由如何把业务域拼起来”；
+- `src/server/services/user/index.ts` 体现“服务层如何把数据库、分析和存储能力组合成一个业务动作”。
 
-`workflows-hono` 是 workflow 入口。`src/server/workflows-hono/index.ts` 以 `/api/workflows` 为 base path，并挂载 `agent-signal`、`memory-user-memory`、`task` 三组 workflow。
+## 推荐阅读顺序
 
-顶层还有 `manifest.ts`、`metadata.ts`、`sitemap.ts`、`translation.ts` 及对应测试文件，说明 `src/server` 也包含一部分服务端生成站点元信息、清单、翻译或 sitemap 的工具逻辑。
-
-## 上下游关系
-
-上游主要来自三类入口：
-
-1. Next.js 后端路由：`src/app/(backend)` 下的 API、webapi、trpc、oidc 等路由会进入服务端逻辑。根据 `agent-hono` 注释，`/api/agent/*` 通过 Next.js optional catch-all 挂载到 Hono app。
-2. 客户端服务层：前端通常通过 `src/services` 或 store action 调 tRPC，而不是直接 import `src/server/services`。
-3. 定时任务、队列和 webhook：`agent-hono`、`workflows-hono` 中能看到 QStash、cron、gateway callback、bot webhook、messenger webhook 等入口。
-
-下游主要是：
-
-1. 数据库模型和仓储：例如 `MessageService` 调用 `MessageModel`、`CompressionRepository`；这些通常来自 `@/database/models/*` 或 `@lobechat/database`。
-2. 外部服务和运行时：例如 Agent Gateway、QStash、模型供应商、S3、Klavis、MCP、搜索服务、OIDC、邮件服务等。
-3. 业务扩展包：`lambdaRouter` 引入 `@/business/server/lambda-routers/*`，说明商业化能力通过 alias 覆盖或扩展进入主路由。
-
-可以把关系理解成：
-
-```text
-React UI / Mobile / Webhook / Cron
-  -> Next.js route 或 tRPC client
-  -> src/server/routers 或 Hono app
-  -> src/server/services
-  -> database models / repositories / modules / external APIs
-```
-
-## 运行/调用流程
-
-以消息更新为例，典型流程是：
-
-```text
-前端触发 message.update
-  -> tRPC 进入 src/server/routers/lambda/message.ts
-  -> messageProcedure 执行 authedProcedure + serverDatabase
-  -> ctx 注入 messageModel、fileService、messageService
-  -> zod 校验 input
-  -> resolveContext 补齐 agentId/sessionId/topicId 等上下文
-  -> ctx.messageService.updateMessage(...)
-  -> MessageService 调用 MessageModel 更新数据库
-  -> 必要时重新 query 消息列表
-  -> 返回给 tRPC 客户端
-```
-
-这里 router 主要做“协议层”的事情：鉴权、数据库上下文、中间件、输入 schema、错误形态、调用服务。Service 主要做“业务层”的事情：组合多个 model/repository，处理更新后的查询、文件 URL、压缩消息、事务或跨实体逻辑。
-
-以配置读取为例，流程大致是：
-
-```text
-客户端请求 config router
-  -> server/globalConfig/getServerGlobalConfig
-  -> 读取 envs、business const、provider config
-  -> parse 默认 Agent、文件配置、SSO、systemAgent
-  -> 返回 GlobalServerConfig
-```
-
-以 feature flag 为例：
-
-```text
-调用 getServerFeatureFlagsStateFromRuntimeConfig(userId)
-  -> getMergedFeatureFlags(userId)
-  -> RedisRuntimeConfigProvider 读取全局发布配置
-  -> EnvRuntimeConfigProvider 作为 fallback
-  -> 如果有 userId，再读取用户级 override
-  -> merge DEFAULT_FEATURE_FLAGS
-  -> mapFeatureFlagsEnvToState
-```
-
-以 Agent HTTP 任务为例：
-
-```text
-POST /api/agent
-  -> agent-hono
-  -> qstashOrApiKeyAuth
-  -> execAgent handler
-
-POST /api/agent/run
-  -> qstashAuth
-  -> runStep handler
-
-POST /api/agent/tool-result
-  -> serviceTokenAuth
-  -> toolResult handler
-```
-
-这类入口不是普通页面 API，更像后台任务、队列回调、Agent Gateway、外部平台 webhook 的控制面。
-
-## 小白阅读顺序
-
-1. 先看 `src/server/routers/lambda/index.ts`  
-   这是主 tRPC router 地图。先不用深入每个 router，只要记住业务域如何被挂到根路由上。
-
-2. 再看一个具体 router，例如 `src/server/routers/lambda/message.ts`  
-   重点看 `authedProcedure`、`serverDatabase`、`z.object(...).input(...)`、`.query`、`.mutation`、`ctx.messageService` 这些模式。看懂一个 router 后，其他业务 router 会很相似。
-
-3. 接着看对应 service，例如 `src/server/services/message/index.ts`  
-   重点理解 service 如何组合 `Model`、`Repository`、其他 service，以及为什么业务逻辑不直接堆在 router 里。
-
-4. 然后看 `src/server/globalConfig/index.ts`  
-   它能帮助你理解环境变量、默认配置、AI Provider、认证能力、文件能力等是怎么暴露给应用的。
-
-5. 再看 `src/server/featureFlags/index.ts` 和 `src/server/runtimeConfig`  
-   这部分解释了“运行中可变配置”与“环境变量默认值”的关系。
-
-6. 最后看 `src/server/agent-hono/index.ts`、`src/server/workflows-hono/index.ts`  
-   它们适合在你已经理解 tRPC 之后阅读，因为它们处理的是 Agent、队列、workflow、webhook 这些更后台化的入口。
+1. 先看 `src/server/routers/lambda/index.ts`、`src/server/routers/async/index.ts`，建立服务端 API 的整体分区感。
+2. 再看 `src/server/agent-hono/index.ts`、`src/server/workflows-hono/index.ts`，理解非 TRPC 的 Hono 入口怎么组织。
+3. 然后看 `src/server/globalConfig/index.ts`，掌握服务端配置是如何从环境变量和业务开关汇总出来的。
+4. 接着看 `src/server/services/user/index.ts` 这类典型 service，理解业务层的编排方式。
+5. 最后再进入 `src/server/modules/ModelRuntime/index.ts`、`src/server/modules/S3`、`src/server/modules/KeyVaultsEncrypt` 这类底层模块，补齐执行细节。
 
 ## 常见误区
 
-1. 不要把 `src/server/routers` 当成业务逻辑最终归宿。router 应该偏薄，主要负责 API 形状、鉴权、输入校验和调用 service；复杂业务通常应下沉到 `src/server/services`。
-
-2. 不要以为所有后端接口都是 tRPC。`agent-hono` 和 `workflows-hono` 说明项目也使用 Hono 来承接 Agent、workflow、webhook、cron、gateway callback 等 HTTP 入口。
-
-3. 不要忽略 `mobileRouter`。移动端不是直接暴露完整 `lambdaRouter`，而是选择性复用部分 lambda router，并加入移动端专用订阅能力。
-
-4. 不要把 `modules` 和 `services` 混为一谈。根据目录命名和当前片段推断，`modules` 更偏底层能力适配或基础设施封装，`services` 更偏业务用例编排。
-
-5. 不要只看开源目录。`lambdaRouter` 明确 import 了 `@/business/server/lambda-routers/*`，说明商业化或 cloud 扩展会通过业务目录合入服务端路由。阅读实际行为时，要注意 alias 和覆盖机制。
-
-6. 不要绕过 runtime config。`featureFlags` 并非只读环境变量，它会通过 Redis runtime config、环境变量 fallback、用户 override 合并得到最终状态。调试功能开关时要同时考虑全局配置、用户覆盖和默认值。
-
-7. 不要让前端直接依赖 `src/server/services`。正常边界应是前端 store/client service 调 tRPC 或 HTTP API，服务端 router 再调用 server service。这样才能保持鉴权、数据库上下文和输入校验的一致性。
+- 把 `src/server/modules` 当成普通工具目录。这里通常是底层能力封装，不只是零散 helper；很多地方会直接影响鉴权、模型调用、文件访问和执行上下文。
+- 把 `src/server/services` 和 `src/server/routers` 混为一谈。前者是业务实现，后者是入口分发。改功能时通常先定位 router，再下钻 service。
+- 只看 `src/server/routers/lambda/index.ts` 就以为看懂了全部 API。实际上 `async`、`mobile`、`tools`、`agent-hono`、`workflows-hono` 都是独立入口，职责不同。
+- 忽略 `globalConfig` 和 `runtimeConfig`。很多行为不是写死在 service 里，而是由这些配置汇总文件决定，尤其是模型 provider、默认 Agent、文件配置、SSO、功能开关。
+- 看到 `workflows` 就误以为它只是后台任务。根据当前片段推断，这里同时承担了可被 Hono 暴露的流程型接口，和更偏内部编排的 workflow 逻辑。

@@ -52,7 +52,7 @@ def main() -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--concurrency", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
-    parser.add_argument("--max-tasks", type=int, default=500)
+    parser.add_argument("--max-tasks", type=int, default=120)
     parser.add_argument("--skip-overview", action="store_true")
     args = parser.parse_args()
 
@@ -143,10 +143,12 @@ def main() -> int:
         return finalize(out, run_id, "failed", "Stage C failed; pipeline stopped", {"stage": "C", "returncode": code})
 
     counts = task_counts(out, run_id)
-    total = sum(counts.values())
-    done = counts.get("done", 0)
-    failed = counts.get("failed", 0)
-    payload = {"counts": counts, "total": total, "done": done, "failed": failed}
+    active_counts = {k: int(counts.get(k, 0)) for k in ("pending", "running", "done", "failed")}
+    skipped = int(counts.get("skipped", 0))
+    total = sum(active_counts.values())
+    done = active_counts.get("done", 0)
+    failed = active_counts.get("failed", 0)
+    payload = {"counts": counts, "active_counts": active_counts, "skipped": skipped, "total": total, "done": done, "failed": failed}
     if stage_failed(out, run_id, "A") or stage_failed(out, run_id, "B") or stage_failed(out, run_id, "C"):
         return finalize(out, run_id, "failed", "A critical pipeline stage failed", payload)
     if failed:

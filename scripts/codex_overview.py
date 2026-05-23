@@ -18,6 +18,7 @@ from _common import (
     ensure_run,
     init_state_db,
     render_progress_json_from_db,
+    sanitize_markdown_tree,
     run_codex_exec,
     set_stage_status,
     strip_codex_output,
@@ -31,6 +32,7 @@ REQUIRED_MARKDOWN = [
     "01-tech-stack.md",
     "02-architecture.md",
     "03-runtime-flow.md",
+    "04-reading-guide.md",
 ]
 REQUIRED_JSON = "critical_paths.json"
 
@@ -53,12 +55,14 @@ def build_prompt(repo: Path, out: Path) -> str:
 - 面向刚接触该项目的中文读者，中文为主；代码名、路径、函数名、包名、命令保留英文。
 - 只能基于仓库真实文件、README、包管理/构建配置、入口文件和源码结构；推断必须标注依据。
 - 不要写营销文案，不要生成单个巨型文档，不要把命令执行过程写进正文。
+- 不要输出真实网址；如必须提及链接或仓库地址，请脱敏成 `[URL已移除]`。
 - index.md 是推荐阅读顺序，必须链接上述总览页，并列出后续最值得看的目录/文件。
 - 00-overview.md 说明项目解决的问题、核心能力、主要模块和适合初学者的切入点。
 - 01-tech-stack.md 解释技术栈、运行环境、构建/包管理信号、读源码前需要知道的概念。
 - 02-architecture.md 解释目录分层、模块边界、关键依赖方向和扩展点。
 - 03-runtime-flow.md 解释启动、配置加载、请求/任务/数据流转、关键调用链。证据不足时写明“根据当前文件推断”。
-- 每个总览 Markdown 至少 900 个非空白中文/符号字符；index.md 至少 350 个非空白字符。
+- 04-reading-guide.md 说明核心入口、可后读模块、可跳过模块，以及继续下钻的顺序。
+- 每个总览 Markdown 至少 900 个非空白中文/符号字符；index.md 至少 350 个非空白字符；04-reading-guide.md 至少 700 个非空白中文/符号字符。
 
 critical_paths.json 必须是合法 JSON，格式如下：
 {{
@@ -74,6 +78,7 @@ critical_paths.json 必须是合法 JSON，格式如下：
 }}
 
 critical_paths.json 至少包含 3 个 critical_directories、5 个 critical_files，reading_order 不能为空。
+critical_paths.json 只放能解释架构的种子路径，不要穷举全部目录和文件；建议目录 8-15 个、文件 20-40 个。
 请把文件写到输出目录；最终 stdout 可以只简短说明完成情况。"""
 
 
@@ -101,7 +106,12 @@ def validate_stage_a(out: Path) -> tuple[bool, str, dict[str, Any]]:
         if not path.exists():
             return False, f"missing required file: {rel}", payload
         text = path.read_text(encoding="utf-8", errors="replace")
-        min_chars = 350 if rel == "index.md" else 900
+        if rel == "index.md":
+            min_chars = 350
+        elif rel == "04-reading-guide.md":
+            min_chars = 700
+        else:
+            min_chars = 900
         ok, reason = validate_markdown(text, min_chars=min_chars)
         payload["files"][rel] = {"ok": ok, "reason": reason}
         if not ok:
@@ -157,6 +167,7 @@ def main() -> int:
             emit_signal(out, args.run_id, "STAGE_FAILED", payload)
             render_progress_json_from_db(out, args.run_id)
             return 1
+        sanitize_markdown_tree(out)
         payload.update(fallback_payload)
         set_stage_status(out, args.run_id, "A", "completed", message="Stage A overview completed with local fallback", payload=payload)
         emit_signal(out, args.run_id, "STAGE_COMPLETED", {"stage": "A", **payload})
@@ -195,6 +206,7 @@ def main() -> int:
         ok, reason, payload = validate_stage_a(out)
         if not ok:
             raise RuntimeError(reason)
+        sanitize_markdown_tree(out)
         set_stage_status(out, args.run_id, "A", "completed", message="Stage A overview completed", payload=payload)
         emit_signal(out, args.run_id, "STAGE_COMPLETED", {"stage": "A", **payload})
         render_progress_json_from_db(out, args.run_id)

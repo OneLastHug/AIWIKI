@@ -1,49 +1,21 @@
 {
-  "status": "running",
-  "done": 52,
+  "status": "completed",
+  "done": 200,
   "total": 200,
-  "percent": 26.0,
+  "percent": 100.0,
   "failed": 0,
-  "current": "komga/src/main/kotlin/org/gotson/komga/infrastructure/web",
-  "updated_at": 1779390316.5747697,
+  "current": "PIPELINE_COMPLETED",
+  "updated_at": 1779394710.5225763,
   "unit": "目录+文件",
   "model": "gpt-5.5",
   "reasoning": "medium",
   "timeout_seconds": 1800,
-  "last_success": "komga/src/test/kotlin/org/gotson/komga/domain",
+  "last_success": "komga/src/main/kotlin/org/gotson/komga/domain/model/SearchField.kt",
   "last_error": null,
   "run_id": "6b2f1347-f5bf-4075-a0a7-602d3bc2c665",
   "stage": "C",
-  "active_workers": [
-    {
-      "worker_id": "6b2f1347-w1",
-      "current_task": "directory:komga/src/test/kotlin/org/gotson/komga/domain/service",
-      "updated_at": 1779390264.5621755
-    },
-    {
-      "worker_id": "6b2f1347-w2",
-      "current_task": null,
-      "updated_at": 1779390316.4926775
-    },
-    {
-      "worker_id": "6b2f1347-w3",
-      "current_task": "directory:komga/src/main/kotlin/org/gotson/komga/application/events",
-      "updated_at": 1779390266.4073231
-    },
-    {
-      "worker_id": "6b2f1347-w4",
-      "current_task": "directory:komga/src/main/kotlin/org/gotson/komga/infrastructure/web",
-      "updated_at": 1779390307.9808488
-    },
-    {
-      "worker_id": "6b2f1347-w5",
-      "current_task": "directory:komga/src/main/kotlin/org/gotson/komga/infrastructure/xml",
-      "updated_at": 1779390271.8250678
-    }
-  ],
+  "active_workers": [],
   "task_breakdown": {
-    "done": 52,
-    "pending": 144,
-    "running": 4
+    "done": 200
   }
 }

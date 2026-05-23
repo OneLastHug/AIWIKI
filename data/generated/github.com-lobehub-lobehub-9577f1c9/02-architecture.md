@@ -1,43 +1,19 @@
-# 架构分层与模块边界
+# 目录与架构
 
-## 顶层结构
+从目录分层看，这个仓库的结构非常清晰，但需要按“职责层”来读，而不是按纯文件树来读。`src/app` 是 Next.js 的后端入口层，`src/spa` 是浏览器 SPA 启动层，`src/routes` 是页面段层，`src/features` 是业务 UI 与领域逻辑层，`src/store` 是状态层，`src/services` 是客户端服务封装层，`src/server` 是服务端实现层，`packages/*` 是共享能力层，`apps/*` 是独立产品壳层。这样的层次来自 `tsconfig.json` 的路径映射、根目录 `package.json` 的 workspace 设置，以及各目录实际文件名的分布。
 
-仓库顶层可以按“应用入口、共享包、服务端、前端业务、数据库、部署与工具”理解。`src/` 是主应用代码；`packages/` 是 workspace 共享包；`apps/` 放桌面、CLI、device gateway 等附加应用；`docs/`、`locales/`、`public/`、`scripts/`、`tests/`、`e2e/` 分别对应文档、本地化、静态资源、工程脚本、测试工具和端到端测试。`pnpm-workspace.yaml` 把根项目、`packages/**`、`e2e`、`apps/desktop/src/main` 纳入 workspace，说明这些目录之间可以通过 `workspace:*` 依赖协同开发。
+`src/app` 主要解决“把不同入口挂到 Next.js 上”的问题。`src/app/layout.tsx` 提供根 HTML 外壳；`src/app/[variants]/(auth)` 负责登录、重置密码、验证码等 SSR 认证页；`src/app/spa/[variants]/[[...path]]/route.ts` 负责把静态 SPA 模板、服务端配置、功能开关、SEO 元信息和客户端环境变量拼装成可返回的 HTML；`src/app/(backend)/api`、`src/app/(backend)/trpc`、`src/app/(backend)/webapi`、`src/app/(backend)/market`、`src/app/(backend)/oidc`、`src/app/(backend)/workflows` 则承载 HTTP 接口。这里的边界很重要：`src/app` 本身不放大量页面业务，而是把请求分派给其他层。
 
-`src/app/` 属于 Next App Router。它不是主要 SPA 页面目录，而是承载服务端 API、认证页面、站点元信息、manifest、robots、sitemap 和 SPA HTML 模板。`src/app/(backend)/trpc/lambda/[trpc]/route.ts` 是主要 tRPC lambda 入口；`src/app/(backend)/api/agent/[[...route]]/route.ts` 把请求交给 `src/server/agent-hono`；`src/app/spa/[variants]/[[...path]]/route.ts` 返回 SPA HTML。`src/app/[variants]/(auth)` 则是 SSR/Next 页面形态的认证相关页面。
+`src/spa` 负责浏览器里的路由根。`src/spa/entry.web.tsx`、`src/spa/entry.desktop.tsx`、`src/spa/entry.mobile.tsx`、`src/spa/entry.popup.tsx` 分别对应不同平台入口；`src/spa/router/desktopRouter.config.tsx` 与 `src/spa/router/desktopRouter.config.desktop.tsx` 必须同步，这一点由 `src/spa/router/desktopRouter.sync.test.tsx` 保护；`src/spa/router/mobileRouter.config.tsx` 与 `src/spa/router/popupRouter.config.tsx` 负责移动端和弹窗场景。`src/utils/router.tsx` 在这里起到枢纽作用，它把路由树、懒加载、错误边界、全局导航引用和预取逻辑合成一个可运行的浏览器路由实例。
 
-`src/spa/` 是 SPA 的浏览器入口与路由配置。`entry.web.tsx`、`entry.mobile.tsx`、`entry.desktop.tsx`、`entry.popup.tsx` 都调用 `createAppRouter` 并渲染 `RouterProvider`。`router/desktopRouter.config.tsx`、`desktopRouter.config.desktop.tsx`、`mobileRouter.config.tsx`、`popupRouter.config.tsx` 声明不同平台的 React Router route tree。桌面路由中大量使用 `dynamicElement` 和 `dynamicLayout`，说明页面按路由懒加载。`desktopRouter.sync.test.tsx` 也表明普通 desktop config 与 desktop build config 必须保持结构同步。
+`src/routes` 是“薄路由树”。它的职责是只保留页面段文件，真正的 UI 和业务流程要下沉到 `src/features`。比如 `src/routes/(main)/agent`、`src/routes/(main)/group`、`src/routes/(main)/page`、`src/routes/(main)/settings`、`src/routes/(mobile)/chat`、`src/routes/onboarding` 这些目录，大多只是布局壳、页面壳和少量转发逻辑。这个分工从仓库的 `AGENTS.md` 以及多处路由配置里可以直接看出来：路由文件本身越薄，越方便平台之间复用。
 
-`src/routes/` 是页面段目录，按路由根分组。仓库约定中要求 `src/routes/` 保持薄层：只做 route segment、layout/page 组合，业务组件和复杂逻辑放到 `src/features/`。真实路由配置也印证了这一点：`desktopRouter.config.tsx` 中的 import 指向 `@/routes/(main)/agent`、`@/routes/(main)/settings`、`@/routes/(mobile)/chat` 等页面段，同时 route meta 和 UI 能力来自 `@/features/*`。
+`src/features` 是真正的业务拼装区。这里包含 `AgentBuilder`、`AgentSetting`、`Conversation`、`ChatInput`、`Pages`、`PageEditor`、`ResourceManager`、`SkillStore`、`PluginsUI`、`Onboarding`、`User`、`NavPanel`、`RightPanel` 等大量领域组件。它们通常组合 `src/store`、`src/services` 和 UI 组件，完成实际交互。`src/components` 则更偏通用基础组件，比如加载态、错误态、图标、提示、上传、编辑器、弹窗宿主等。
 
-`src/features/` 是业务 UI 和领域组件的主要位置。目录包含 `AgentBuilder`、`AgentTasks`、`Conversation`、`PageEditor`、`Pages`、`SkillStore`、`ModelSelect`、`Messenger`、`ResourceManager`、`Setting` 等。`src/components/` 则更偏通用组件和基础 UI 拼装，如错误、Loading、菜单、复制标签、文件图标、Markdown、插件展示、统计等。边界可以粗略理解为：`components` 可复用粒度更小，`features` 贴近业务域，`routes` 负责页面挂载。
+`src/server` 的边界更像后端内核。`src/server/routers/lambda` 是主 tRPC router；`src/server/routers/async`、`src/server/routers/mobile` 和 `src/server/routers/tools` 是不同用途的子 router；`src/server/services` 是真正承载业务规则的地方，比如 Agent runtime、消息、文件、生成、知识库、网关、市场、追踪、用户记忆、MCP、视频等；`src/server/modules` 是可复用的服务端模块，不一定直接访问数据库，但会为 runtime、Tracing、S3、ModelRuntime、AssistantStore 等服务提供能力。`src/server/globalConfig` 和 `src/server/featureFlags` 则负责把环境与开关翻译成客户端能理解的配置。
 
-## 前端状态与数据边界
+`packages/database` 是全仓最关键的基础设施之一。`packages/database/src/schemas` 定义表结构和关系，`packages/database/src/models` 封装单表或聚合操作，`packages/database/src/repositories` 则提供更高层的数据访问接口。`packages/database/src/index.ts` 统一导出各 schema/model/repository，`packages/database/migrations` 保存迁移脚本，`drizzle.config.ts` 连接 schema 与迁移生成。这里建议把“schema -> model -> repository -> service -> route”作为默认依赖方向，而不是反过来。
 
-`src/store/` 使用 zustand 按业务域拆分：`agent`、`agentGroup`、`chat`、`session`、`topic`、`task`、`file`、`user`、`serverConfig`、`tool`、`image`、`page`、`document` 等。每个 store 下常见 `slices`、`selectors`、`reducers`、`utils`。`src/layout/GlobalProvider/StoreInitialization.tsx` 是跨 store 初始化入口，会触发系统状态、服务端配置、用户状态和内置 Agent 初始化。`src/store/serverConfig/action.ts` 展示了常见模式：store action 使用 SWR hook 调 service，成功后写入 store。
+`packages/agent-runtime`、`packages/model-runtime`、`packages/model-bank`、`packages/builtin-tools`、`packages/tool-runtime` 这些包是能力底座。`packages/model-bank` 管模型与供应商定义，`packages/model-runtime` 把不同供应商适配成统一运行时，`packages/agent-runtime` 实现 Agent 的核心状态机和运行循环，`packages/builtin-tools` 则注册内建工具清单和能力白名单，`packages/tool-runtime` 提供更底层的工具执行框架。`src/server/services/agentRuntime/AgentRuntimeService.ts` 说明后端真正执行 Agent 的时候，会把这些底层包组装起来。
 
-`src/services/` 是客户端服务层，通常面向 store 或 feature 暴露方法。这里有 `agent.ts`、`aiAgent.ts`、`aiChat.ts`、`file/index.ts`、`global.ts`、`knowledgeBase.ts`、`message/index.ts`、`task.ts`、`topic/index.ts`、`user/index.ts`、`generation.ts` 等。它们不应直接承载 UI 状态，而是封装 HTTP/tRPC、上传、导入导出、Electron bridge 等调用。`src/libs/trpc/client/lambda.ts` 是最核心的 tRPC client，负责 `/trpc/lambda`、鉴权 header、401 处理、batch 策略和 superjson。
-
-## 后端边界
-
-`src/server/routers/` 是 API router 层，分为 `lambda`、`async`、`mobile`、`tools`。`lambda/index.ts` 聚合绝大多数业务 API；`async` 和 workflow/queue 相关；`tools` 面向工具市场、MCP、搜索等；`mobile` 有移动端专用 router。router 层通常引入 `publicProcedure`、`authedProcedure` 或业务中间件，使用 zod schema 校验输入，然后调用 service。
-
-`src/server/services/` 是业务服务层，负责把请求语义变成领域操作。这里的服务会组合 database model、server module、外部 SDK、队列、S3、Agent Runtime、邮件、gateway、market 等能力。例如 `AiAgentService` 读取 Agent 配置、构造执行上下文并调用 `AgentRuntimeService`；`AgentRuntimeService` 负责 operation state、stream event、hook、tool execution、queue 调度；`FileService`、`KnowledgeBaseService`、`MessageService` 等则围绕各自领域组织持久化和业务规则。
-
-`src/server/modules/` 是更底层的服务端模块，文件结构显示有 `AgentRuntime`、`ModelRuntime`、`Mecha`、`S3`、`KeyVaultsEncrypt`、`PluginStore`、`AgentTracing` 等。根据当前引用关系推断，modules 更接近可复用基础设施，services 更接近产品业务用例。例如 `AgentRuntimeService` 会调用 `src/server/modules/AgentRuntime` 中的 `AgentRuntimeCoordinator` 和 stream event manager。
-
-`packages/database/` 是数据库边界。`packages/database/src/schemas/` 定义表和关系，`models/` 按业务对象封装读写，`repositories/` 封装跨模型或复杂查询场景，`core/` 负责 Drizzle DB 实例。`src/database/*` 通过 tsconfig path 指向 `packages/database/src/*`，所以应用层可以用 `@/database/models/...` 引入数据库 model。这个别名让主应用看起来像在 `src/database` 下，但真实源文件在 package 中。
-
-## 关键依赖方向
-
-从常见调用链看，依赖方向大致是：`src/routes`/`src/features` 调 `src/store` 或 `src/services`；`src/store` 通过 service 和 SWR/tRPC 获取数据；`src/services` 调 `src/libs/trpc/client` 或 Electron bridge；Next route handler 调 `src/server/routers`；router 调 `src/server/services`；service 调 `src/server/modules`、`packages/*`、`packages/database/src/models`；database model 调 Drizzle schema 和 DB 实例。这个方向有助于避免初学者在 UI 层直接改数据库或在 database 包里引入 React UI。
-
-另一个重要边界是 platform-specific。Web/mobile/desktop/popup 的 SPA 入口不同，Electron 主进程和 preload 在 `apps/desktop/src/`，而 Web UI 仍在根 `src/`。`src/services/electron/` 是 renderer 侧调用桌面能力的桥，`apps/desktop/src/main/controllers/` 是主进程实现。根据当前文件推断，桌面端通过 IPC/bridge 把本地文件、系统、MCP、远程服务器、异构 Agent 等能力暴露给 SPA。
-
-## 扩展点
-
-新增页面时优先看 `src/spa/router/*.tsx`、`src/routes/`、`src/features/` 的分工；新增 API 时看 `src/server/routers/lambda` 和 `src/server/services`；新增数据库字段或表时看 `packages/database/src/schemas`、`models`、`drizzle.config.ts` 和 migrations；新增内置工具时看 `packages/builtin-tool-*`、`packages/builtin-tools/src` 和 `src/store/tool`、`src/server/services/toolExecution`；新增模型/provider 时看 `packages/model-bank`、`packages/model-runtime`、`src/server/globalConfig/genServerAiProviderConfig.ts`。新增桌面能力时看 `apps/desktop/src/main/controllers`、`apps/desktop/src/preload`、`src/services/electron`。
-
-## 依据
-
-本页依据 `pnpm-workspace.yaml`、`tsconfig.json`、`src/app/*`、`src/spa/*`、`src/routes/*`、`src/features/*`、`src/store/*`、`src/services/*`、`src/server/routers/*`、`src/server/services/*`、`src/server/modules/*`、`packages/database/src/*`、`apps/desktop/src/*` 的目录结构和入口引用整理。模块边界部分包含少量“根据当前文件推断”，依据是文件命名、导入方向和服务调用链。
+`src/business` 和 `packages/business/*` 体现了“开源核心 + 商业覆写”的边界。`src/business/client/BusinessGlobalProvider.tsx`、`src/business/client/BusinessDesktopRoutes.tsx`、`src/business/server/lambda-routers/*` 等文件说明业务能力会以相同接口被替换或扩展。结合 `AGENTS.md` 里提到的“cloud repo root 覆盖 submodule”的说明，可以推断这些目录是为了在不破坏开源主干的情况下加入云端特性。

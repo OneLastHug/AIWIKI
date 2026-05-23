@@ -1,0 +1,13 @@
+{
+  "status": "completed",
+  "at": 1779394710.4961982,
+  "payload": {
+    "message": "Pipeline completed successfully",
+    "counts": {
+      "done": 200
+    },
+    "total": 200,
+    "done": 200,
+    "failed": 0
+  }
+}

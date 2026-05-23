@@ -1,66 +1,74 @@
-# 目录：`src/server/services/agentRuntime`
+# 目录：src/server/services/agentRuntime
 
 ## 它负责什么
 
-这个目录是服务端“Agent 运行时编排层”。它不直接实现模型推理，而是把一次 Agent 运行拆成可管理的服务流程：创建 operation、推进 step、处理中断、接入人工介入、记录 trace、派发 hooks、以及在队列/同步模式之间切换。
+这个目录是后端 agent 运行时的服务层封装，核心职责是把一次 agent 操作从“创建、调度、逐步执行、处理人工介入、完成收尾”串成一条完整链路。根据当前片段推断，它不是单一算法模块，而是一个运行时编排中心：上接消息、队列、工具执行和 agent signal，下接数据库持久化、trace 记录和 webhook 钩子。
 
-从代码上看，核心入口是 [`AgentRuntimeService.ts`](./src/server/services/agentRuntime/AgentRuntimeService.ts)，它把 `@lobechat/agent-runtime` 的通用运行时，和仓库内的数据库、队列、消息模型、tool 执行、Agent Signal、tracing 这些服务串起来。`index.ts` 只是做导出聚合。
+它最重要的角色有三类：
 
-## 关键组成
+1. 运行时编排。`AgentRuntimeService` 负责创建 operation、调度第一步、执行 step、查询状态、处理 human intervention、做同步执行。
+2. 生命周期收尾。`CompletionLifecycle` 负责把 operation 走到终态时的数据库落库、signal 事件发射、hook 派发、错误回写。
+3. 外部扩展。`hooks/HookDispatcher.ts` 负责本地 hook 和 webhook 两种模式的分发，保证运行时可以被外部系统观察或介入。
 
-- [`AgentRuntimeService.ts`](./src/server/services/agentRuntime/AgentRuntimeService.ts)：主编排器。负责 `createOperation`、`executeStep`、`startExecution`、`processHumanIntervention`、`executeSync`、`interruptOperation` 等。
-- [`CompletionLifecycle.ts`](./src/server/services/agentRuntime/CompletionLifecycle.ts)：负责 operation 的开始/结束持久化和完成态收口。根据代码注释，它掌管 `agent_operations` 的起止记录，并在终态时触发 signal/hook 收尾。
-- [`HumanInterventionHandler.ts`](./src/server/services/agentRuntime/HumanInterventionHandler.ts)：处理 `approve / reject / input / select` 这类人工介入，把用户决策折回到下一步上下文。
-- [`OperationTraceRecorder.ts`](./src/server/services/agentRuntime/OperationTraceRecorder.ts)：负责运行过程的 snapshot/trace 记录，和 `ISnapshotStore` 对接。
-- [`AbandonOperationService.ts`](./src/server/services/agentRuntime/AbandonOperationService.ts)` + `[`abort.ts`](./src/server/services/agentRuntime/abort.ts)：处理终止/中断语义。
-- [`stepPresentation.ts`](./src/server/services/agentRuntime/stepPresentation.ts)：把 stepResult 整理成可展示、可日志化的摘要数据。
-- [`hooks/`](./src/server/services/agentRuntime/hooks)：外部 lifecycle hook 系统。`HookDispatcher` 负责本地派发，`types.ts` 定义 hook 事件和 webhook 序列化结构。
-- `types.ts`：定义运行参数、operation 状态、step 生命周期回调、completion reason、tool set 等核心类型。
+## 直接子目录地图
 
-## 上下游关系
+这个目录下真正的直接子目录很少，当前片段里能看到的只有两个：
 
-上游输入主要来自三类地方：
+- `hooks/`：外部生命周期 hook 的实现区。这里放着 hook 分发器、hook 类型和导出入口，是运行时的扩展接口层。
+- `__tests__/`：围绕运行时主流程、hook、收尾、人工介入、同步执行等行为的测试集合。它更像行为说明书，不是主代码路径。
 
-1. 调用方构造 `OperationCreationParams`，把 `agentConfig`、`modelRuntimeConfig`、`toolSet`、`initialContext`、`appContext` 这些运行信息传进来。
-2. 队列/worker 驱动 step 推进。`startExecution()` 会把执行请求交给 `QueueService`，最后打到 `.../api/agent/run`。
-3. 人工介入和外部回调。`processHumanIntervention()` 把审批/输入/拒绝信息重新排队，`executeStep()` 会在 step 边界合并这些信息。
+其余文件都位于目录根部，说明这个目录偏“服务聚合层”，不是再往下拆很多内部子模块。根据当前片段推断，`hooks/` 是唯一的功能性子目录，`__tests__/` 只是验证层。
 
-下游则是它调用的基础设施：
+## 关键入口
 
-- `AgentRuntimeCoordinator` 和 `createStreamEventManager()`：管理 operation state、step lock、stream event。
-- `ToolExecutionService` / `BuiltinToolsExecutor` / `mcpService`：真正执行工具调用。
-- `MessageModel`：从消息表中回查 device 上下文。
-- `emitAgentSignalSourceEvent()` / `toAgentSignalTraceEvents()`：把运行事件转成 Agent Signal trace。
-- `hookDispatcher`：触发本地 hook 或序列化后的 webhook。
-- `@lobechat/agent-runtime` 里的 `AgentRuntime`、`GeneralChatAgent`、`findInMessages`：承担通用运行时和消息遍历能力。
+对外最直接的入口是 `index.ts`。它只做三件事：导出 `AbandonOperationService`、`AgentRuntimeService` 和 `types`，说明这个目录被设计成一个服务包，对外消费时不需要关心内部文件组织。
 
-根据当前片段推断，这个目录是 `src/server/modules/AgentRuntime` 之上的业务服务层，下一层才是通用 runtime 和具体 executor。
+真正的主入口是 `AgentRuntimeService.ts`。从构造函数看，它会组装这些依赖：
 
-## 运行/调用流程
+- `AgentRuntimeCoordinator`
+- `CompletionLifecycle`
+- `HumanInterventionHandler`
+- `OperationTraceRecorder`
+- `ToolExecutionService`
+- `QueueService`
+- `hookDispatcher`
 
-1. `createOperation()` 先写入 operation 起始记录，再初始化 `AgentState`，把 `metadata`、`toolSet`、`userMemory`、`appContext` 等塞进去。
-2. 如果配置了外部 hooks，就通过 `hookDispatcher.register()` 注册，并把可序列化部分写回 state metadata。
-3. 如果 `autoStart` 为真，进入 `startExecution()`：更新状态为 `running`，然后通过 `QueueService` 调度 `/api/agent/run`。
-4. worker 进到 `executeStep()` 后，先抢分布式锁，避免重复 step。
-5. 读取最新 state，先跑 `beforeStep` signal/hook，再通过 `createAgentRuntime()` 构造 `Agent` 和 `AgentRuntime`。
-6. 如有人工介入参数，交给 `HumanInterventionHandler` 合并进当前 state/context。
-7. 必要时从数据库消息里补 device context，然后执行 `runtime.step()`。
-8. step 结束后保存结果、生成 step presentation、发 `step_complete` 事件、记录 trace，最后由 `CompletionLifecycle` 决定是否进入终态收口。
-9. `executeSync()` 则是绕过队列，循环调用 `executeStep()`，适合测试或同步执行场景。
+这说明 `AgentRuntimeService` 不是单点逻辑，而是把运行时需要的协调器、队列、工具执行和收尾器都接起来。
 
-## 小白阅读顺序
+另一个关键入口是 `hooks/index.ts`。它通常会把 `hookDispatcher` 这种单例实例对外暴露，方便整个服务层共享同一个 hook 注册表。
 
-1. 先看 [`index.ts`](./src/server/services/agentRuntime/index.ts)，确认这个目录对外导出了什么。
-2. 再看 [`types.ts`](./src/server/services/agentRuntime/types.ts)，把参数、状态、completion reason 这些名词看懂。
-3. 接着读 [`AgentRuntimeService.ts`](./src/server/services/agentRuntime/AgentRuntimeService.ts) 的 `createOperation()`、`startExecution()`、`executeStep()`、`executeSync()`，这是主线。
-4. 然后补 [`CompletionLifecycle.ts`](./src/server/services/agentRuntime/CompletionLifecycle.ts) 和 [`HumanInterventionHandler.ts`](./src/server/services/agentRuntime/HumanInterventionHandler.ts)，理解收尾和人工介入。
-5. 最后看 [`hooks/types.ts`](./src/server/services/agentRuntime/hooks/types.ts) 与 [`hooks/HookDispatcher.ts`](./src/server/services/agentRuntime/hooks/HookDispatcher.ts)，理解外部扩展点。
+## 主流程位置
+
+主流程基本集中在 `AgentRuntimeService.ts` 的几个方法里，顺序很清晰：
+
+- `createOperation()`：创建 operation。这里会先写入初始 `agent_operations` 记录，再创建初始 state，注册外部 hooks，最后决定是否自动启动首步。
+- `executeStep()`：真正的 step 执行核心。这里会先抢分布式锁，再发 `step_start` 事件，读取 state，处理终态判断、step 重入、工具调用、LLM 调用，以及后续的状态推进。
+- `startExecution()`：从方法名和测试覆盖看，它更像是启动或恢复一次执行的高层入口，通常会包住 step 调度和状态检查。
+- `processHumanIntervention()`：处理人工审批、拒绝继续、恢复执行等交互分支。
+- `executeSync()`：同步执行路径，常用于测试、禁用队列或需要立即跑完一步的场景。
+
+收尾链路则分散在几个辅助文件里：
+
+- `CompletionLifecycle.ts`：负责终态记录、完成原因映射、错误信息提取、signal 发射和 hook 派发。
+- `OperationTraceRecorder.ts`：负责 trace snapshot 记录和最终归档。
+- `HumanInterventionHandler.ts`：负责把人工介入写回消息和运行状态。
+- `abort.ts`：负责中断判断和异常识别。
+- `stepPresentation.ts`：负责把 step 结果整理成可展示的数据。
+
+hook 分发主线在 `hooks/HookDispatcher.ts`。它区分本地模式和生产模式：本地模式直接调用 handler，生产模式把 hook 序列化成 webhook，通过 fetch 或 QStash 发出去。`hookDispatcher` 是单例，说明它是全局共享的事件总线式对象。
+
+## 推荐阅读顺序
+
+1. 先看 `index.ts`，确认这个目录对外导出了什么。
+2. 再看 `AgentRuntimeService.ts` 的构造函数和 `createOperation()`、`executeStep()`，把主链路先串起来。
+3. 接着看 `CompletionLifecycle.ts`，理解 operation 终态是怎么落库和收尾的。
+4. 再看 `hooks/HookDispatcher.ts` 和 `hooks/types.ts`，理解扩展点和 webhook 机制。
+5. 最后补 `OperationTraceRecorder.ts`、`HumanInterventionHandler.ts`、`stepPresentation.ts`、`abort.ts`，把辅助逻辑补齐。
 
 ## 常见误区
 
-- 把这个目录当成“模型实现层”。它其实是调度和编排层，真正的推理在 `@lobechat/agent-runtime`。
-- 只看 `createOperation()` 不看 `executeStep()`。前者只是建档，后者才是一次运行的核心。
-- 忽略队列语义。这里同时支持异步队列和 `executeSync()`，两条路径的状态推进方式不一样。
-- 只关注 LLM，不关注人工介入。`waiting_for_human` 是一条明确的终态分支，不是异常分支。
-- 忽略 hooks 和 signal。这个目录对外扩展很多，运行时事件不是只给日志看的，还会进入 webhook、trace 和 agent signal 体系。
-- 误以为 `stepPresentation.ts` 只是展示层。它其实也在统一日志摘要、token/cost 统计和 step 结果语义。
+- 把 `createOperation()` 当成真正执行入口。它更像“创建并调度首步”，真正的运行逻辑在 `executeStep()`。
+- 把 `CompletionLifecycle` 只理解成“保存完成状态”。它还负责 signal 事件和 hook 派发，属于终态收口器，不只是写库。
+- 把 `hooks/` 当成测试辅助目录。它是正式功能路径，尤其是 `hookDispatcher`，会影响本地和生产两种模式。
+- 忽略 `executeSync()`。这个方法通常是测试和非队列场景的关键入口，很多同步验证都要靠它。
+- 只看根部文件忽略 `__tests__/`。这些测试名本身就暴露了目录的主流程边界：step 执行、completion webhook、human intervention、agent signal hooks、abandon 逻辑都在这里被覆盖。

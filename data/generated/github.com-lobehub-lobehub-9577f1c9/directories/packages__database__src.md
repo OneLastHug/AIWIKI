@@ -2,88 +2,81 @@
 
 ## 它负责什么
 
-`packages/database/src` 是 LobeHub 仓库中的数据库基础包源码目录，对外包名是 `@lobechat/database`。它不是页面层、也不是业务路由层，而是把数据库相关能力集中封装成可复用的 workspace package，供主应用的 `src/server/services`、TRPC router、后台任务、导入导出等服务端代码调用。
+`packages/database/src` 是整个数据库层的实现核心，职责不是单纯放 SQL 表结构，而是把“连接数据库、定义 schema、封装模型、组织仓库方法、对外提供服务端入口”这一整套能力放在一起。根据当前片段推断，这里是 `@lobechat/database` 包的主要源码区，供上层的 server、router、服务层直接调用。
 
-从 `packages/database/package.json` 看，它的主要职责包括：
+它的定位可以概括成三层：
 
-- 提供数据库表结构定义：通过 `./schemas` 导出 `packages/database/src/schemas/index.ts`。
-- 提供数据库连接与适配入口：主入口 `src/index.ts` 导出 `./core/db-adaptor`。
-- 提供领域级数据访问封装：目录中有大量 `models/` 与 `repositories/`。
-- 提供数据库相关工具：例如 `utils/idGenerator`、`utils/genWhere`、`utils/bm25` 等。
-- 支撑测试数据库：`core/getTestDB.ts` 与 package 中的 `@electric-sql/pglite` 依赖说明它可以为测试构造本地轻量数据库环境。
+1. 连接层：负责创建 Drizzle 数据库实例，并按环境选择 Neon 或 `pg`。
+2. 数据结构层：通过 `schemas` 统一导出所有表、关系和相关 schema。
+3. 业务访问层：通过 `models` 和 `repositories` 把具体读写逻辑按领域拆开。
 
-根据 `peerDependencies`，这个包围绕 `drizzle-orm`、`drizzle-zod`、`pg`、`zod`、`nanoid` 工作；根据当前片段推断，它是 PostgreSQL + Drizzle ORM 的集中封装层。
+这使得上层代码不需要直接接触连接细节，也不需要在各处重复拼查询。
 
-## 关键组成
+## 直接子目录地图
 
-`core/` 是数据库连接和运行环境适配层。当前入口 `src/index.ts` 直接导出 `core/db-adaptor`，`src/server/index.ts` 又把 `getServerDB`、`serverDB` 从这里转出，说明 `db-adaptor.ts` 是服务端获得数据库实例的核心入口。`core/web-server.ts`、`core/getTestDB.ts` 则分别暗示 Web/Server 场景与测试场景的 DB 初始化支持。
+`packages/database/src` 下的直接子目录主要有这些：
 
-`schemas/` 是表结构层。`schemas/index.ts` 聚合导出 `agent`、`message`、`session`、`topic`、`user`、`file`、`rag`、`rbac`、`aiInfra`、`generation`、`betterAuth`、`nextauth`、`oidc` 等模块。它的职责通常是定义 Drizzle table、relations、insert/select 类型、索引和外键关系。这里的 `relations.ts` 单独被导出，说明关系映射是 schema 层的重要组成部分。
+- `core`：数据库实例创建与环境适配的入口。这里通常是连库、缓存实例、测试环境兼容的地方。
+- `schemas`：Drizzle 表结构与关联定义的总出口，里面还按主题继续拆分，如 `agentDocuments`、`ragEvals`、`userMemories` 等。
+- `models`：面向业务概念的模型层，按领域组织，比如 `agentDocuments`、`agentEval`、`agentSignal`、`ragEval`、`userMemory`，并带有大量测试。
+- `repositories`：更偏应用场景的查询/写入封装，按能力域拆分为 `aiInfra`、`dataImporter`、`knowledge`、`search`、`topicImporter`、`userMemory` 等。
+- `server`：服务端侧的轻量出口，当前片段里主要是把 `getServerDB`、`serverDB` 转出。
+- `types`：类型定义补充区，通常承接数据库相关的公共类型。
+- `utils`：通用小工具，例如 ID 生成类辅助函数。
 
-`models/` 是领域模型层。目录中有 `agent.ts`、`message.ts`、`session.ts`、`topic.ts`、`user.ts`、`file.ts`、`knowledgeBase.ts`、`document.ts`、`generation.ts`、`aiProvider.ts` 等大量文件。根据当前片段推断，每个 model 大概率围绕一个业务实体封装 CRUD、查询组合、分页、状态更新等数据库操作，让上层服务不直接拼 Drizzle 查询。
+如果只看目录角色，不展开叶子文件，这里最值得注意的是：`models` 和 `repositories` 都是按领域切块，但它们的关注点不同，前者更接近“实体/业务模型”，后者更接近“面向场景的数据操作”。
 
-`repositories/` 是更高阶的数据仓库层。它包含 `compression`、`dataExporter`、`dataImporter`、`home`、`knowledge`、`search`、`topicImporter`、`aiInfra`、`userMemory` 等目录。相比单实体 `models/`，repository 更可能负责跨表聚合、导入导出、首页数据聚合、搜索、知识库等复杂用例。主入口 `src/index.ts` 只直接导出了 `repositories/compression`，说明压缩相关能力被当作公共 API 暴露给包外调用。
+## 关键入口
 
-`types/` 与 `type.ts` 是类型出口。`src/index.ts` 导出 `./type`，而目录下还有 `types/chatGroup.ts`、`types/generation.ts`，说明数据库包不仅给运行时代码使用，也为上层提供领域数据结构类型。
+最重要的几个入口文件是：
 
-`utils/` 是数据库辅助工具。可见文件包括 `columns.ts`、`genWhere.ts`、`idGenerator.ts`、`bm25.ts` 及其测试。`genWhere` 通常用于生成条件查询，`bm25` 指向搜索排序或相关度计算，`idGenerator` 则是统一 ID 生成策略。
+- `packages/database/src/index.ts`：包级主入口，对外导出 `core/db-adaptor`、`repositories/compression`、`type`、`utils/idGenerator`。
+- `packages/database/src/core/db-adaptor.ts`：真正的数据库适配层，提供 `getServerDB` 和 `serverDB`。
+- `packages/database/src/core/web-server.ts`：真正创建 Drizzle 实例的地方，决定用 `node-postgres` 还是 Neon serverless。
+- `packages/database/src/schemas/index.ts`：所有 schema 的总出口，其他层通常通过这里拿到完整表定义。
+- `packages/database/src/server/index.ts`：服务端侧的再导出入口，把 `getServerDB` 和 `serverDB` 暴露出去。
 
-## 上下游关系
+从结构上看，`index.ts` 不是重逻辑文件，而是“包的公开门面”；真正的初始化策略集中在 `core/`。
 
-上游输入主要来自三类地方：
+## 主流程位置
 
-- 主应用服务端：典型链路是 `src/server/routers` 或 API route 接收请求，再进入 `src/server/services`，最终调用 `@lobechat/database` 中的 model/repository。
-- 业务配置与类型包：`package.json` 依赖 `@lobechat/types`、`@lobechat/const`、`@lobechat/business-const`、`@lobechat/business-model-bank` 等，说明数据库层会复用全局业务类型、常量和模型定义。
-- ORM 与数据库驱动：`drizzle-orm`、`pg`、`drizzle-zod`、`zod` 为 schema、查询和校验提供基础能力。
+主流程可以理解成一条从“环境检查”到“可用 DB 实例”的链路，核心位置在 `core/web-server.ts` 和 `core/db-adaptor.ts`。
 
-下游输出主要是：
+流程大致是：
 
-- PostgreSQL 数据库读写。
-- 对主应用暴露的 `serverDB` / `getServerDB`。
-- 对上层业务暴露的 model、repository、schema、类型和工具函数。
-- 对测试暴露的测试数据库构造能力，package exports 中还提供了 `./test-utils`。
+1. `core/db-adaptor.ts` 先提供懒加载接口 `getServerDB()`，避免模块一被 import 就立刻初始化数据库。
+2. 如果已经缓存了实例，就直接复用 `cachedDB`。
+3. 否则调用 `getDBInstance()`。
+4. `core/web-server.ts` 负责真正创建数据库：
+   - 在 `NODE_ENV === 'test'` 时返回空壳实例，避免测试初始化失败。
+   - 校验 `KEY_VAULTS_SECRET` 和 `DATABASE_URL`。
+   - 根据 `DATABASE_DRIVER` 选择 `pg` 或 Neon。
+   - 为连接池注册 `error` 监听，避免 idle client 错误把进程打崩。
+5. 最终把 `schema` 注入 Drizzle 实例，得到完整的 `LobeChatDatabase`。
 
-这个包的边界比较清晰：它不负责 HTTP、TRPC、React 状态，也不负责 UI 展示；它负责把“数据如何存、如何查、如何组合”封装起来。
+也就是说，这个目录真正的“主流程”不是 CRUD，而是“如何稳定、安全地把数据库对象交出去”。
 
-## 运行/调用流程
+## 推荐阅读顺序
 
-一个常见调用流程可以理解为：
+如果是第一次理解这个目录，建议按下面顺序看：
 
-1. 前端页面触发某个操作，例如发送消息、创建助手、上传文件、查询知识库。
-2. 客户端 service 调用 TRPC 或后端 API。
-3. 后端 router 进入 `src/server/services` 中的业务服务。
-4. 业务服务通过 `@lobechat/database` 获得 `serverDB` 或调用某个 model/repository。
-5. model/repository 使用 `schemas/` 中定义的表结构和 Drizzle ORM 构造 SQL。
-6. 数据写入或读取 PostgreSQL。
-7. 查询结果被转换为业务需要的类型，返回给 service，再回到 router 和前端。
-
-如果是跨实体场景，例如首页聚合、知识库搜索、数据导入导出，调用点更可能进入 `repositories/`。如果是单实体操作，例如 message、topic、session、user 的增删改查，则更可能落在 `models/`。
-
-测试流程则可能使用 `core/getTestDB.ts` 和 `tests/test-utils.ts` 初始化隔离数据库，再运行 `models/__tests__` 或 `utils/*.test.ts`。
-
-## 小白阅读顺序
-
-建议先从入口看边界：
-
-1. `packages/database/package.json`：先确认这个包对外暴露什么。当前 exports 只有 `"."`、`"./schemas"`、`"./test-utils"`，说明外部应优先通过这些入口使用。
-2. `packages/database/src/index.ts`：看主入口。它导出 `db-adaptor`、`compression`、`type`、`idGenerator`，能快速判断公共 API 面向哪些能力。
-3. `packages/database/src/server/index.ts`：看服务端如何拿数据库实例。这里导出 `getServerDB` 和 `serverDB`。
-4. `packages/database/src/schemas/index.ts`：建立数据表地图。先记住核心域：`user`、`session`、`message`、`topic`、`agent`、`file`、`rag`、`generation`。
-5. `packages/database/src/models/`：按业务对象阅读。新手可以先看 `user.ts`、`session.ts`、`message.ts`、`topic.ts` 这类核心实体，再看更复杂的 `knowledgeBase.ts`、`generation.ts`。
-6. `packages/database/src/repositories/`：最后看跨表用例，例如 `search`、`knowledge`、`dataExporter`、`dataImporter`。这些通常更依赖你已经理解 schema 和 model。
-
-阅读时要把 `schemas`、`models`、`repositories` 三层分开：schema 是“表长什么样”，model 是“单个领域对象怎么读写”，repository 是“一个业务场景怎么组合多张表”。
+1. `packages/database/src/index.ts`：先看包对外暴露什么。
+2. `packages/database/src/type.ts`：确认数据库实例和事务类型是怎么定义的。
+3. `packages/database/src/core/db-adaptor.ts`：看缓存、懒加载和服务端入口。
+4. `packages/database/src/core/web-server.ts`：看真实建连逻辑和环境分支。
+5. `packages/database/src/schemas/index.ts`：理解 schema 是如何聚合的。
+6. 再回头看 `models/` 和 `repositories/` 的目录切分，这时更容易理解它们各自承接的业务范围。
 
 ## 常见误区
 
-第一个误区是把 `models/` 当成前端 model。这里的 model 是数据库访问模型，不是 React 组件状态，也不是 Zustand store。它通常运行在服务端或测试环境中。
+最常见的误区是把 `models`、`repositories`、`schemas` 混为一谈。实际上：
 
-第二个误区是绕过 `models/` 和 `repositories/` 直接在业务服务里拼复杂 SQL。这样会让查询逻辑散落到各处，后续 schema 变化时很难维护。根据当前结构，仓库倾向于把数据访问集中放在 `packages/database/src`。
+- `schemas` 负责“数据库长什么样”。
+- `models` 负责“某个业务实体怎么被组织和操作”。
+- `repositories` 负责“某类场景怎么查询或写入”。
 
-第三个误区是混淆 `schemas/` 和 `types/`。`schemas/` 更接近数据库表定义和 ORM 映射，`types/` / `type.ts` 更接近 TypeScript 层面对外复用的数据类型。
+第二个误区是以为 `core/web-server.ts` 只是普通工具文件。其实它是数据库启动策略的中心，包含环境判断、驱动切换、错误监听和 schema 注入，属于高敏感入口。
 
-第四个误区是认为 `repositories/` 和 `models/` 没区别。根据目录命名和文件分布推断，`models/` 更偏实体级操作，`repositories/` 更偏业务场景聚合，例如搜索、知识库、导入导出、压缩等。
+第三个误区是忽略 `test` 分支。这里有专门的测试环境返回逻辑，说明这个包的设计目标之一就是让数据库相关测试尽量不依赖真实连库。
 
-第五个误区是只看 `src/index.ts` 就以为这个包只暴露了少量能力。实际上 package 还通过 `./schemas` 暴露 schema 聚合入口，而主应用内部也可能通过 workspace alias 或具体路径引用更深层模块。判断真实调用关系时，需要再查调用方。
-
-第六个误区是忽视测试环境。这个包有 `getTestDB.ts`、`models/__tests__`、`utils/*.test.ts`，并且 package scripts 区分 `test:client-db` 和 `test:server-db`。数据库层改动通常不只要看类型通过，还要关注 server DB 测试与查询行为。
+最后要注意，`server/` 在当前片段里看起来很薄，只是把服务端 DB 入口再导出。根据当前片段推断，它更像“服务端消费层的稳定门面”，而不是另起一套数据库实现。

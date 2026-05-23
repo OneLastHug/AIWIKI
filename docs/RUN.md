@@ -33,7 +33,7 @@ python3 scripts/run_pipeline.py \
   --out /data/project/AIWIKI/data/generated/data-project-lobehub-167e6641 \
   --concurrency 5 \
   --timeout 1800 \
-  --max-tasks 500
+  --max-tasks 120
 ```
 
 如果只想验证 Stage B/C，不调用总览模型：
@@ -64,7 +64,7 @@ python3 scripts/build_task_table.py \
   --repo /data/project/lobehub \
   --out /data/project/AIWIKI/data/generated/data-project-lobehub-167e6641 \
   --run-id manual-b \
-  --max-tasks 500
+  --max-tasks 120
 ```
 
 Stage C 并发执行任务池：
@@ -92,6 +92,7 @@ index.md
 01-tech-stack.md
 02-architecture.md
 03-runtime-flow.md
+04-reading-guide.md
 critical_paths.json
 codex_task_table.csv
 state.sqlite3
@@ -120,7 +121,7 @@ workers
 signals
 ```
 
-`progress.json` 是从 SQLite 聚合出来的投影，保留旧字段：
+`progress.json` 是从 SQLite 聚合出来的投影，默认表达的是“核心文档生成进度”，保留旧字段：
 
 ```text
 status, done, total, percent, failed, current, updated_at,
@@ -130,8 +131,10 @@ unit, model, reasoning, timeout_seconds, last_success, last_error
 并新增：
 
 ```text
-run_id, stage, active_workers, task_breakdown
+run_id, stage, active_workers, task_breakdown, skipped, core_done, core_total, coverage
 ```
+
+其中 `done/total/percent` 现在对应默认预算内的核心文档完成情况，而不是全仓库完整解析进度。
 
 通过 HTTP 查看事件：
 

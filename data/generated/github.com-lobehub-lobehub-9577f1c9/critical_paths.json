@@ -1,202 +1,273 @@
 {
   "critical_directories": [
     {
-      "path": "src",
+      "path": "src/app",
       "priority": "P0",
-      "reason": "主应用源码目录，包含 Next 后端入口、SPA 入口、路由、features、store、services 和 server 业务逻辑。"
+      "reason": "Next.js 后端入口、认证页、SPA 模板服务和各类 API 路由都在这里，是请求入口的总汇。"
     },
     {
       "path": "src/spa",
       "priority": "P0",
-      "reason": "React Router SPA 的浏览器入口和桌面/移动/popup 路由配置，决定前端页面如何挂载和懒加载。"
+      "reason": "React Router 启动、桌面/移动/弹窗入口和路由树装配都在这里，决定前端如何真正运行。"
     },
     {
       "path": "src/server",
       "priority": "P0",
-      "reason": "服务端核心目录，包含 tRPC routers、业务 services、Agent Runtime modules、Hono Agent API 和全局配置。"
+      "reason": "tRPC router、Agent runtime、业务 service、runtime config 和 workflow 处理器都集中在这里。"
     },
     {
-      "path": "packages/database",
-      "priority": "P0",
-      "reason": "Drizzle schema、models、repositories、DB 初始化和 migrations 所在目录，是理解持久化层的入口。"
-    },
-    {
-      "path": "packages",
+      "path": "src/routes",
       "priority": "P1",
-      "reason": "workspace 共享包集合，包含 agent-runtime、model-runtime、model-bank、builtin-tool-*、context-engine、types 等底层能力。"
-    },
-    {
-      "path": "apps/desktop",
-      "priority": "P1",
-      "reason": "Electron 桌面端应用，包含主进程、preload、窗口/菜单/本地能力/异构 Agent 控制器。"
+      "reason": "页面段与布局段的主要实现目录，决定各业务页面如何组织和复用。"
     },
     {
       "path": "src/features",
       "priority": "P1",
-      "reason": "业务 UI 和领域组件目录，读具体页面功能时应优先从路由跳转到这里。"
-    },
-    {
-      "path": "src/store",
-      "priority": "P1",
-      "reason": "zustand 状态管理目录，按 agent、chat、task、user、serverConfig 等领域拆分。"
+      "reason": "业务 UI 和领域逻辑的主体，很多页面功能会在这里拼装完成。"
     },
     {
       "path": "src/services",
       "priority": "P1",
-      "reason": "客户端服务层，封装 tRPC、上传、导入导出、Electron bridge 等调用，是 UI/store 与后端之间的边界。"
+      "reason": "客户端面向界面的 API 封装层，连接 UI、tRPC 和后端接口。"
+    },
+    {
+      "path": "src/store",
+      "priority": "P1",
+      "reason": "Zustand 状态层，理解页面状态和数据缓存时必须先看这里。"
+    },
+    {
+      "path": "packages/database",
+      "priority": "P0",
+      "reason": "数据库 schema、model、repository 和迁移脚本的统一来源，是数据层核心。"
+    },
+    {
+      "path": "packages/agent-runtime",
+      "priority": "P0",
+      "reason": "Agent 执行核心运行时，负责步骤、状态、工具与运行循环。"
+    },
+    {
+      "path": "packages/model-runtime",
+      "priority": "P1",
+      "reason": "模型供应商适配和统一调用逻辑集中在这里。"
+    },
+    {
+      "path": "packages/builtin-tools",
+      "priority": "P1",
+      "reason": "内建工具清单、白名单和能力注册入口，是理解 Agent 工具系统的关键。"
+    },
+    {
+      "path": "apps/desktop",
+      "priority": "P1",
+      "reason": "Electron 桌面壳和渲染器构建入口在这里，能帮助理解桌面平台如何复用同一套前端。"
+    },
+    {
+      "path": "apps/cli",
+      "priority": "P2",
+      "reason": "命令行客户端入口，适合在理解主系统后再看。"
     }
   ],
   "critical_files": [
     {
       "path": "package.json",
       "priority": "P0",
-      "reason": "定义 workspace、脚本、依赖和构建顺序，是判断技术栈与运行方式的第一证据。"
+      "reason": "脚本、依赖、workspace 和构建方式都从这里开始确认。"
+    },
+    {
+      "path": "README.zh-CN.md",
+      "priority": "P0",
+      "reason": "项目目标、功能范围和对外叙述最集中。"
     },
     {
       "path": "pnpm-workspace.yaml",
       "priority": "P0",
-      "reason": "声明 monorepo workspace 范围，解释 packages、e2e、desktop main 如何纳入依赖解析。"
+      "reason": "workspace 范围和依赖包分布必须先确认。"
     },
     {
-      "path": "vite.config.ts",
+      "path": "tsconfig.json",
       "priority": "P0",
-      "reason": "定义 SPA 构建、移动端入口、PWA、Debug Proxy、Vite dev 行为和输出目录。"
+      "reason": "路径别名、编译范围和排除规则决定源码如何互相引用。"
     },
     {
       "path": "next.config.ts",
       "priority": "P0",
-      "reason": "Next 配置入口，连接 src/libs/next/config/define-config.ts 并处理 Vercel serverless tracing 优化。"
+      "reason": "Next.js 部署和 tracing 行为的关键配置文件。"
     },
     {
-      "path": "src/libs/next/config/define-config.ts",
+      "path": "vite.config.ts",
       "priority": "P0",
-      "reason": "集中定义 Next headers、redirects、standalone/Docker、serverExternalPackages、Turbopack 和缓存策略。"
+      "reason": "SPA 构建、平台切换和本地开发代理的核心配置。"
+    },
+    {
+      "path": "scripts/devStartupSequence.mts",
+      "priority": "P0",
+      "reason": "本地开发时 Next.js 与 Vite 如何同时启动，从这里最容易看清。"
+    },
+    {
+      "path": "src/app/layout.tsx",
+      "priority": "P0",
+      "reason": "Next 根布局，是整个应用树的根节点。"
     },
     {
       "path": "src/app/spa/[variants]/[[...path]]/route.ts",
       "priority": "P0",
-      "reason": "Next 返回 SPA HTML 并注入 window.__SERVER_CONFIG__、SEO meta、开发态 Vite 资源重写的关键入口。"
+      "reason": "SPA HTML 模板、服务端配置和 SEO 元信息的关键注入点。"
     },
     {
       "path": "src/spa/entry.web.tsx",
       "priority": "P0",
-      "reason": "Web SPA 挂载入口，显示 initialize、React root、RouterProvider 和 Debug Proxy basename 的关系。"
+      "reason": "Web SPA 的浏览器入口。"
     },
     {
-      "path": "src/utils/router.tsx",
-      "priority": "P0",
-      "reason": "createAppRouter、动态路由懒加载、RouterRoot、全局 Provider 和错误边界的核心实现。"
+      "path": "src/spa/entry.desktop.tsx",
+      "priority": "P1",
+      "reason": "桌面 SPA 的浏览器入口。"
+    },
+    {
+      "path": "src/spa/entry.mobile.tsx",
+      "priority": "P1",
+      "reason": "移动 SPA 的浏览器入口。"
     },
     {
       "path": "src/spa/router/desktopRouter.config.tsx",
       "priority": "P0",
-      "reason": "桌面端 React Router 主路由树，能快速看到 agent、group、community、settings、task、page 等页面入口。"
+      "reason": "桌面路由树的主要定义文件。"
+    },
+    {
+      "path": "src/spa/router/desktopRouter.config.desktop.tsx",
+      "priority": "P0",
+      "reason": "桌面路由树的另一份同步配置，必须与主配置保持一致。"
     },
     {
       "path": "src/spa/router/mobileRouter.config.tsx",
       "priority": "P1",
-      "reason": "移动端 React Router 路由树，解释 mobile 页面如何复用 main routes 和 mobile routes。"
+      "reason": "移动端路由树。"
+    },
+    {
+      "path": "src/utils/router.tsx",
+      "priority": "P0",
+      "reason": "BrowserRouter、错误边界、懒加载和导航注册的组装枢纽。"
     },
     {
       "path": "src/layout/SPAGlobalProvider/index.tsx",
       "priority": "P0",
-      "reason": "SPA 全局 Provider 总入口，串起 locale、主题、serverConfig store、Query、Auth、StoreInitialization、弹窗和分析。"
-    },
-    {
-      "path": "src/layout/GlobalProvider/StoreInitialization.tsx",
-      "priority": "P0",
-      "reason": "客户端状态初始化入口，触发系统状态、服务端配置、用户状态、内置 Agent 和移动端状态更新。"
-    },
-    {
-      "path": "src/libs/trpc/client/lambda.ts",
-      "priority": "P0",
-      "reason": "客户端 tRPC lambda client，定义 /trpc/lambda、鉴权 header、错误处理、batch 策略和 superjson。"
-    },
-    {
-      "path": "src/app/(backend)/trpc/lambda/[trpc]/route.ts",
-      "priority": "P0",
-      "reason": "Next tRPC lambda route handler，连接 createLambdaContext、lambdaRouter 和 fetchRequestHandler。"
-    },
-    {
-      "path": "src/libs/trpc/lambda/context.ts",
-      "priority": "P0",
-      "reason": "服务端请求上下文生成逻辑，处理 API key、OIDC、cookie、session、trace、clientIp 和 userId。"
+      "reason": "全局主题、语言、上传、弹窗和状态注入的核心 Provider。"
     },
     {
       "path": "src/server/routers/lambda/index.ts",
       "priority": "P0",
-      "reason": "主 tRPC router 聚合文件，列出业务 API 的完整命名空间。"
+      "reason": "主 tRPC router 的总入口。"
     },
     {
-      "path": "src/server/globalConfig/index.ts",
+      "path": "src/libs/trpc/lambda/context.ts",
       "priority": "P0",
-      "reason": "服务端全局配置生成入口，解释 AI provider、默认 Agent、认证、上传、视觉理解、记忆和 telemetry 如何暴露。"
+      "reason": "tRPC 上下文和认证链路的关键入口。"
     },
     {
-      "path": "src/server/routers/lambda/aiAgent.ts",
-      "priority": "P0",
-      "reason": "Agent 执行相关 tRPC router，定义 execAgent、group/sub-agent、人类审批和 operation 控制的输入边界。"
+      "path": "src/services/session/index.ts",
+      "priority": "P1",
+      "reason": "前端如何通过服务层访问 session 相关能力的典型样板。"
     },
     {
-      "path": "src/server/services/aiAgent/index.ts",
-      "priority": "P0",
-      "reason": "Agent 业务服务核心，读取 Agent 配置、构造上下文和工具集，并调用 AgentRuntimeService。"
+      "path": "src/store/session/store.ts",
+      "priority": "P1",
+      "reason": "Zustand 状态实现样板。"
     },
     {
       "path": "src/server/services/agentRuntime/AgentRuntimeService.ts",
       "priority": "P0",
-      "reason": "Agent operation、step 执行、队列调度、hook、trace、stream event 和 human intervention 的核心实现。"
+      "reason": "Agent 执行主循环和工具调度的服务核心。"
+    },
+    {
+      "path": "src/server/modules/AgentRuntime/factory.ts",
+      "priority": "P0",
+      "reason": "Agent runtime 选择 Redis/内存实现的决策点。"
+    },
+    {
+      "path": "src/server/services/queue/QueueService.ts",
+      "priority": "P0",
+      "reason": "Agent 任务排队与执行节奏的抽象层。"
     },
     {
       "path": "src/server/agent-hono/index.ts",
       "priority": "P0",
-      "reason": "Hono Agent API 路由，挂载 /api/agent、/run、tool-result、gateway、webhook、messenger 等后台入口。"
+      "reason": "/api/agent/* 的 Hono 路由总入口。"
     },
     {
-      "path": "drizzle.config.ts",
+      "path": "src/app/(backend)/api/agent/stream/route.ts",
       "priority": "P0",
-      "reason": "Drizzle Kit 配置，指定 PostgreSQL、schema 目录和 migrations 输出。"
+      "reason": "Agent SSE 流式事件输出入口。"
     },
     {
-      "path": "packages/database/src/core/web-server.ts",
+      "path": "packages/database/src/index.ts",
       "priority": "P0",
-      "reason": "服务端 DB 初始化逻辑，选择 node-postgres 或 Neon serverless，并校验 DATABASE_URL、KEY_VAULTS_SECRET。"
+      "reason": "数据库 schema/model/repository 的总导出。"
     },
     {
       "path": "packages/database/src/schemas/index.ts",
       "priority": "P0",
-      "reason": "数据库 schema 统一导出文件，可快速了解持久化领域覆盖范围。"
+      "reason": "数据库表结构和关系的汇总入口。"
+    },
+    {
+      "path": "packages/database/src/core/db-adaptor.ts",
+      "priority": "P0",
+      "reason": "数据库实例加载方式，决定 service 如何拿到 DB。"
+    },
+    {
+      "path": "packages/agent-runtime/src/index.ts",
+      "priority": "P0",
+      "reason": "Agent runtime 底层能力的统一导出入口。"
+    },
+    {
+      "path": "packages/model-runtime/src/index.ts",
+      "priority": "P1",
+      "reason": "模型 runtime 统一导出入口。"
+    },
+    {
+      "path": "packages/builtin-tools/src/index.ts",
+      "priority": "P1",
+      "reason": "内建工具注册和默认工具集合。"
     },
     {
       "path": "apps/desktop/package.json",
       "priority": "P1",
-      "reason": "桌面端依赖和脚本入口，确认 Electron、electron-vite、electron-builder 和桌面专用依赖。"
+      "reason": "桌面端构建、开发与打包入口。"
+    },
+    {
+      "path": "apps/desktop/electron.vite.config.ts",
+      "priority": "P1",
+      "reason": "Electron main/preload/renderer 的构建拓扑。"
+    },
+    {
+      "path": "apps/cli/package.json",
+      "priority": "P2",
+      "reason": "CLI 的脚本、bin 名称和依赖入口。"
+    },
+    {
+      "path": "apps/cli/src/program.ts",
+      "priority": "P2",
+      "reason": "CLI 命令注册总入口。"
     }
   ],
   "reading_order": [
-    {
-      "path": "index.md",
-      "title": "阅读索引"
-    },
     {
       "path": "00-overview.md",
       "title": "项目整体介绍"
     },
     {
       "path": "01-tech-stack.md",
-      "title": "技术栈与运行环境"
+      "title": "技术栈说明"
     },
     {
       "path": "02-architecture.md",
-      "title": "架构分层与模块边界"
+      "title": "目录与架构"
     },
     {
       "path": "03-runtime-flow.md",
-      "title": "运行时流程与关键调用链"
+      "title": "运行与流转"
     },
     {
-      "path": "critical_paths.json",
-      "title": "关键阅读路径"
+      "path": "04-reading-guide.md",
+      "title": "继续阅读指南"
     }
   ]
 }

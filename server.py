@@ -26,6 +26,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Iterable
 
+from scripts._common import sanitize_markdown_text
+
 HOST = os.environ.get("RDS_HOST", "127.0.0.1")
 PORT = int(os.environ.get("RDS_PORT", "18081"))
 BASE = Path(os.environ.get("RDS_BASE") or (Path(__file__).resolve().parent / "data")).resolve()
@@ -209,26 +211,36 @@ def tree_lines(files: list[str], max_lines: int = 350) -> str:
     return "\n".join(files[:max_lines]) + ("\n..." if len(files) > max_lines else "")
 
 
-def important_dirs(files: list[str], max_dirs: int = 18) -> list[str]:
+def important_dirs(files: list[str], max_dirs: int = 15) -> list[str]:
     counts: dict[str, int] = {}
+    preferred = ["src", "packages", "apps", "app", "lib", "server", "routes", "docs", "scripts", "tools", "examples"]
+    existing = {f.split("/", 1)[0] for f in files if "/" in f}
     for f in files:
         parts = f.split("/")
         if len(parts) > 1:
             for i in range(1, min(len(parts), 3)):
                 d = "/".join(parts[:i])
                 counts[d] = counts.get(d, 0) + 1
-    return [d for d, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:max_dirs]]
+    ordered = [d for d in preferred if d in existing]
+    for d, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        if d not in ordered:
+            ordered.append(d)
+        if len(ordered) >= max_dirs:
+            break
+    return ordered[:max_dirs]
 
 
-def important_code_files(root: Path, files: list[str], max_files: int = 30) -> list[str]:
+def important_code_files(root: Path, files: list[str], max_files: int = 40) -> list[str]:
     priority = []
     for f in files:
         p = root / f
         if p.suffix.lower() in CODE_EXTS or p.name in MANIFESTS or p.name.lower().startswith("readme"):
             score = 0
             low = f.lower()
-            for token in ["main", "app", "server", "index", "router", "config", "service", "controller", "package.json", "pyproject", "go.mod"]:
+            for token in ["main", "app", "server", "index", "router", "route", "config", "service", "controller", "provider", "runtime", "model", "schema", "domain", "task", "flow", "package.json", "pyproject", "go.mod"]:
                 if token in low: score += 5
+            if any(token in low for token in ["test", "tests", "spec", "fixture", "mock", "snapshot", "generated", "locales", "public"]):
+                score -= 20
             try: size = p.stat().st_size
             except Exception: size = 999999
             if size < 250000:
@@ -238,14 +250,14 @@ def important_code_files(root: Path, files: list[str], max_files: int = 30) -> l
 
 def write_md(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content.strip() + "\n", encoding="utf-8")
+    path.write_text(sanitize_markdown_text(content).strip() + "\n", encoding="utf-8")
 
 
 def generate_fallback_docs(root: Path, gen: Path, source: str, scan: Scan, warning: str | None = None) -> list[str]:
     gen.mkdir(parents=True, exist_ok=True)
     dirs = important_dirs(scan.files)
     code_files = important_code_files(root, scan.files)
-    order = ["index.md", "00-overview.md", "01-tech-stack.md", "02-architecture.md", "03-runtime-flow.md"]
+    order = ["index.md", "00-overview.md", "01-tech-stack.md", "02-architecture.md", "03-runtime-flow.md", "04-reading-guide.md"]
     order += [f"directories/{d.replace('/', '__')}.md" for d in dirs]
     order += [f"files/{f.replace('/', '__')}.md" for f in code_files]
 
@@ -261,6 +273,7 @@ def generate_fallback_docs(root: Path, gen: Path, source: str, scan: Scan, warni
 2. [技术栈与预备知识](01-tech-stack.md)
 3. [架构与目录关系](02-architecture.md)
 4. [运行链路/数据流推测](03-runtime-flow.md)
+5. [阅读指南](04-reading-guide.md)
 
 ## 2. 再读重要目录
 {chr(10).join(f'- [{d}](directories/{d.replace("/", "__")}.md)' for d in dirs) or '- 暂无可拆分目录'}
@@ -334,6 +347,26 @@ def generate_fallback_docs(root: Path, gen: Path, source: str, scan: Scan, warni
 ## 可能值得优先看的入口/关键文件
 {chr(10).join(f'- `{f}`' for f in code_files[:15])}
 """)
+    write_md(gen / "04-reading-guide.md", f"""
+# 阅读指南
+
+## 先看什么
+优先从 `00-overview.md`、`01-tech-stack.md`、`02-architecture.md`、`03-runtime-flow.md` 建立项目地图，再进入目录页和文件页。这个仓库的默认目标不是把每个叶子都讲透，而是先快速看懂核心路径。
+
+## 核心入口
+{chr(10).join(f'- `{f}`' for f in code_files[:10]) or '- 暂无明显入口文件'}
+
+## 可后读目录
+{chr(10).join(f'- `{d}`' for d in dirs[:12]) or '- 暂无关键目录'}
+
+## 可以先跳过的内容
+- 测试夹具、快照、生成产物、静态资源、本地缓存。
+- 只有转发、常量、样板导出的薄文件。
+- 没有入口、也没有被其他模块引用的叶子目录。
+
+## 怎么继续下钻
+当你想看更细的地方时，优先找 `router`、`controller`、`service`、`store`、`runtime`、`provider`、`config`、`index` 这些文件名。它们比零散组件更能说明代码怎么串起来。
+""")
     for d in dirs:
         files = [f for f in scan.files if f.startswith(d + "/")][:200]
         write_md(gen / "directories" / f"{d.replace('/', '__')}.md", f"""
@@ -400,7 +433,7 @@ def run_pipeline(root: Path, gen: Path) -> tuple[int, str]:
         "--timeout",
         os.environ.get("RDS_PIPELINE_TIMEOUT", "1800"),
         "--max-tasks",
-        os.environ.get("RDS_PIPELINE_MAX_TASKS", "200"),
+        os.environ.get("RDS_PIPELINE_MAX_TASKS", "120"),
     ]
     if os.environ.get("RDS_PIPELINE_SKIP_OVERVIEW", "").lower() in {"1", "true", "yes"}:
         cmd.append("--skip-overview")
@@ -698,14 +731,17 @@ def load_repo_progress(repo_id: str | None) -> dict | None:
 def progress_card_html(repo_id: str | None) -> str:
     pr = load_repo_progress(repo_id)
     if not pr:
-        return "<div class='right-card progress-card'><div class='right-label'>DOC STATUS</div><strong>v0.1</strong><div class='progress'><span></span></div><small>生成文档可读性优化中</small></div>"
-    done = int(pr.get('done') or 0)
-    total = int(pr.get('total') or 0)
+        return "<div class='right-card progress-card'><div class='right-label'>认知地图</div><strong>准备中</strong><div class='progress'><span></span></div><small>正在生成项目级阅读地图</small></div>"
+    done = int(pr.get('core_done') or pr.get('done') or 0)
+    total = int(pr.get('core_total') or pr.get('total') or 0)
+    skipped = int(pr.get('skipped') or 0)
     percent = float(pr.get('percent') or (done / total * 100 if total else 0))
     status = html.escape(str(pr.get('status') or 'running'))
     current = html.escape(str(pr.get('current') or ''))
-    unit = html.escape(str(pr.get('unit') or '目录+文件'))
-    return f"<div class='right-card progress-card'><div class='right-label'>解析进度</div><strong>{percent:.1f}%</strong><div class='progress'><span style='width:{max(0,min(100,percent)):.1f}%'></span></div><small>{done} / {total} {unit}<br>状态：{status}<br>{current}</small></div>"
+    unit = html.escape(str(pr.get('unit') or '核心文档'))
+    skipped_text = f"<br>已跳过：{skipped} 个低价值节点" if skipped else ""
+    coverage = html.escape(str(pr.get('coverage') or '认知地图生成'))
+    return f"<div class='right-card progress-card'><div class='right-label'>{coverage}</div><strong>{done} / {total}</strong><div class='progress'><span style='width:{max(0,min(100,percent)):.1f}%'></span></div><small>{unit} 完成率 {percent:.1f}%{skipped_text}<br>状态：{status}<br>{current}</small></div>"
 
 def page(title: str, body: str, sidebar: str = "", repo_id: str | None = None) -> bytes:
     has_sidebar = bool(sidebar.strip())
@@ -859,6 +895,7 @@ OVERVIEW_DOCS = [
     ("01-tech-stack.md", "技术栈与预备知识"),
     ("02-architecture.md", "架构与目录关系"),
     ("03-runtime-flow.md", "运行链路 / 数据流"),
+    ("04-reading-guide.md", "阅读指南"),
 ]
 
 IMPORTANT_ORDER = {

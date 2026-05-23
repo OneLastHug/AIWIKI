@@ -1,117 +1,173 @@
 # 文件：src/routes/(main)/community/(detail)/provider/features/Details/Overview/ModelList/index.tsx
 
-## 它负责什么
+## 文件职责初判
+请把这个页面当作源码旁白。当前基础版先展示源码节选和阅读提示；后续深度讲解任务会补充函数级解释、调用关系和小白类比。
 
-这个文件定义了社区 `provider` 详情页里的“模型列表”展示组件 `ModelList`。它不是做数据拉取，也不是做编辑逻辑，而是把 `DetailProvider` 提供的 `models` 以表格形式渲染出来，供用户快速比较一个 provider 支持哪些模型，以及每个模型的能力、上下文长度、最大输出、输入/输出单价等信息。
+## 阅读提示
+- 先看“引入的依赖”：文件开头的 `import` / `require` 会告诉你这个文件站在哪一层。
+- 再看“对外提供的内容”：`export` / `class` / `function` 分别表示导出、类、函数。
+- 最后看具体实现：理解输入、输出、副作用。
 
-从实现上看，它是一个纯展示型的客户端组件：
+## 源码节选（保留原始代码，不翻译）
+```text
+'use client';
 
-- `use client` 表示它运行在客户端
-- `memo` 包裹，减少不必要重渲染
-- `useDetailContext()` 从上层上下文拿数据
-- `InlineTable` 负责表格布局
-- 每一行的主入口和右侧箭头，都跳转到 `/community/model/:id`
+import { ModelIcon } from '@lobehub/icons';
+import { ActionIcon, Block, Flexbox, Tooltip, TooltipGroup } from '@lobehub/ui';
+import { cssVar } from 'antd-style';
+import { ChevronRightIcon } from 'lucide-react';
+import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import urlJoin from 'url-join';
 
-## 关键组成
+import InlineTable from '@/components/InlineTable';
+import { ModelInfoTags } from '@/components/ModelSelect';
+import { formatPriceByCurrency, formatTokenNumber } from '@/utils/format';
+import { getTextInputUnitRate, getTextOutputUnitRate } from '@/utils/pricing';
 
-这个组件的核心由几块拼起来：
+import { useDetailContext } from '../../../DetailProvider';
 
-1. 数据来源  
-   `const { models = [] } = useDetailContext();`  
-   这里的 `models` 来自 `DetailProvider`，类型上是 `DiscoverProviderDetail` 的部分字段。这个文件本身不关心数据怎么来的，只关心怎么展示。
+const ModelList = memo(() => {
+  const { models = [] } = useDetailContext();
+  const { t } = useTranslation('discover');
 
-2. 表格容器  
-   外层是 `TooltipGroup` + `Block variant="outlined"`，说明它希望和同页面其他信息块保持一致的视觉语义。真正的表格由 `InlineTable` 渲染，`scroll={{ x: 900 }}` 说明列比较多，横向滚动是预期行为。
+  return (
+    <TooltipGroup>
+      <Block variant={'outlined'}>
+        <InlineTable
+          dataSource={models}
+          rowKey="id"
+          scroll={{ x: 900 }}
+          columns={[
+            {
+              dataIndex: 'id',
+              key: 'model',
+              render: (_, record) => {
+                return (
+                  <Link style={{ color: 'inherit' }} to={urlJoin('/community/model', record.id)}>
+                    <Flexbox horizontal align="center" gap={8}>
+                      <ModelIcon model={record.id} size={24} type={'avatar'} />
+                      <Flexbox style={{ overflow: 'hidden' }}>
+                        <div style={{ fontWeight: 500 }}>{record.displayName}</div>
+                        <div style={{ color: cssVar.colorTextSecondary, fontSize: 12 }}>
+                          {record.id}
+                        </div>
+                      </Flexbox>
+                    </Flexbox>
+                  </Link>
+                );
+              },
+              sorter: (a, b) => a.displayName.localeCompare(b.displayName),
+              title: t('providers.modelName'),
+              width: 200,
+            },
+            {
+              dataIndex: 'abilities',
+              key: 'abilities',
+              render: (_, record) => {
+                if (!record?.abilities || !Object.values(record?.abilities).includes(true))
+                  return '--';
+                return <ModelInfoTags {...record?.abilities} />;
+              },
+              title: t('models.abilities'),
+              width: 120,
+            },
+            {
+              dataIndex: 'contextWindowTokens',
+              key: 'contextLength',
+              render: (_, record) =>
+                record.contextWindowTokens ? formatTokenNumber(record.contextWindowTokens) : '--',
+              sorter: (a, b) => (a.contextWindowTokens || 0) - (b.contextWindowTokens || 0),
+              title: t('models.contentLength'),
+              width: 120,
+            },
+            {
+              dataIndex: 'maxOutput',
+              key: 'maxOutput',
+              render: (_, record) =>
+                record.maxOutput ? formatTokenNumber(record.maxOutput) : '--',
+              showSorterTooltip: false,
+              sorter: (a, b) => (a.maxOutput || 0) - (b.maxOutput || 0),
+              title: (
+                <Tooltip title={t('models.providerInfo.maxOutputTooltip')}>
+                  <span>{t('models.providerInfo.maxOutput')}</span>
+                </Tooltip>
+              ),
+              width: 120,
+            },
+            {
+              dataIndex: 'inputPrice',
+              key: 'inputPrice',
+              render: (_, record) => {
+                const inputRate = getTextInputUnitRate(record.pricing);
+                return inputRate
+                  ? '$' + formatPriceByCurrency(inputRate, record.pricing?.currency)
+                  : '--';
+              },
+              showSorterTooltip: false,
+              sorter: (a, b) => {
+                const aRate = getTextInputUnitRate(a.pricing) || 0;
+                const bRate = getTextInputUnitRate(b.pricing) || 0;
+                return aRate - bRate;
+              },
+              title: (
+                <Tooltip title={t('models.providerInfo.inputTooltip')}>
+                  <span>{t('models.providerInfo.input')}</span>
+                </Tooltip>
+              ),
+              width: 100,
+            },
+            {
+              dataIndex: 'outputPrice',
+              key: 'outputPrice',
+              render: (_, record) => {
+                const outputRate = getTextOutputUnitRate(record.pricing);
+                return outputRate
+                  ? '$' + formatPriceByCurrency(outputRate, record.pricing?.currency)
+                  : '--';
+              },
+              showSorterTooltip: false,
+              sorter: (a, b) => {
+                const aRate = getTextOutputUnitRate(a.pricing) || 0;
+                const bRate = getTextOutputUnitRate(b.pricing) || 0;
+                return aRate - bRate;
+              },
+              title: (
+                <Tooltip title={t('models.providerInfo.outputTooltip')}>
+                  <span>{t('models.providerInfo.output')}</span>
+                </Tooltip>
+              ),
+              width: 100,
+            },
+            {
+              align: 'right',
+              dataIndex: 'action',
+              key: 'action',
+              render: (_, record) => {
+                return (
+                  <Flexbox horizontal align="center" gap={4} justify={'flex-end'}>
+                    <Link style={{ color: 'inherit' }} to={urlJoin('/community/model', record.id)}>
+                      <ActionIcon
+                        color={cssVar.colorTextDescription}
+                        icon={ChevronRightIcon}
+                        size={'small'}
+                        variant={'filled'}
+                      />
+                    </Link>
+                  </Flexbox>
+                );
+              },
+              title: '',
+              width: 60,
+            },
+          ]}
+        />
+      </Block>
+    </TooltipGroup>
+  );
+});
 
-3. 第一列：模型名  
-   - 用 `ModelIcon` 显示模型头像
-   - 显示 `record.displayName` 和 `record.id`
-   - 点击整块跳到模型详情页
-   - 支持按 `displayName` 排序
+export default ModelList;
 
-4. 能力与规格列  
-   - `abilities`：如果没有任何 `true` 值，就显示 `--`，否则用 `ModelInfoTags`
-   - `contextWindowTokens`：用 `formatTokenNumber` 格式化
-   - `maxOutput`：同样用 token 格式化，并给表头加了 tooltip 解释
-   - `inputPrice` / `outputPrice`：先通过 `getTextInputUnitRate`、`getTextOutputUnitRate` 取文本单价，再用 `formatPriceByCurrency` 格式化，最后手动加 `$`
-
-5. 动作列  
-   最后一列只有一个右箭头 `ActionIcon`，本质上和第一列的链接一致，都是把用户带到模型详情页。这个设计更像“行内快捷入口”，而不是新增功能按钮。
-
-6. 文案与国际化  
-   所有表头标题都来自 `useTranslation('discover')`，说明这个组件依赖 `discover` 命名空间的文案，而不是写死英文。
-
-## 上下游关系
-
-上游关系很清楚：
-
-- [`DetailProvider`](./DetailProvider.tsx) 提供 `DetailContext`
-- [`Overview`](../index.tsx) 从同一个 context 里取 `models`，先显示数量标签，再渲染 `ModelList`
-- 这个文件再把 `models` 具体展开为表格
-
-根据当前片段推断，整个 provider 详情页应该是先由路由层或页面容器把 provider 详情数据塞进 `DetailProvider config`，然后 `Overview`、`Nav`、`Sidebar` 等子模块按需消费。证据是同目录下多个组件都在使用 `useDetailContext()`，说明这是整页共享状态，而不是局部状态。
-
-下游关系主要有两类：
-
-- UI 组件依赖：`InlineTable`、`ModelIcon`、`ModelInfoTags`、`ActionIcon`
-- 工具函数依赖：`formatPriceByCurrency`、`formatTokenNumber`、`getTextInputUnitRate`、`getTextOutputUnitRate`
-
-路由跳转依赖则是：
-
-- `Link` + `urlJoin('/community/model', record.id)`  
-  这意味着这里从 provider 视角切到单个 model 视角，形成“provider 详情 -> model 详情”的浏览链路。
-
-## 运行/调用流程
-
-1. 上层页面把 provider 详情数据装入 `DetailProvider`
-2. `Overview` 读取 `models`
-3. `Overview` 先显示“支持模型数量”的标题标签
-4. `Overview` 渲染 `ModelList`
-5. `ModelList` 从 `useDetailContext()` 拿到 `models`
-6. `InlineTable` 按列定义渲染每个模型
-7. 用户点击模型名或右侧箭头，跳转到 `/community/model/:id`
-
-表格内部还有几条隐含流程：
-
-- 排序时，`displayName`、`contextWindowTokens`、`maxOutput`、价格字段都分别走自己的比较函数
-- 空值统一显示 `--`
-- `abilities` 为空时不展示标签，避免把无意义信息硬塞进界面
-- `TooltipGroup` 让一组 tooltip 的交互体验更一致
-
-## 小白阅读顺序
-
-1. 先看 [`DetailProvider.tsx`](./DetailProvider.tsx)  
-   搞清楚 `useDetailContext()` 的数据来源和类型边界。
-
-2. 再看 [`Overview/index.tsx`](../index.tsx)  
-   理解这个列表在整个详情页里处于什么位置，以及标题和数量是怎么来的。
-
-3. 然后回到这个 `ModelList/index.tsx`  
-   按列看：模型名、能力、上下文、最大输出、价格、跳转按钮。
-
-4. 最后追工具函数和组件  
-   如果你想知道价格怎么格式化、能力标签长什么样，再去看：
-   - `@/utils/format`
-   - `@/utils/pricing`
-   - `@/components/ModelSelect`
-   - `@/components/InlineTable`
-
-## 常见误区
-
-1. 它不是数据获取层  
-   这里没有请求接口、没有 SWR、没有状态写入，只是消费 `DetailProvider` 里的 `models`。
-
-2. 它不是 provider 详情页的主逻辑  
-   这个文件只负责“模型列表”这一块，页面结构、标题、侧边栏、导航都在别的组件里。
-
-3. `abilities` 不是总会显示  
-   只有 `record.abilities` 里存在至少一个 `true` 时才会渲染标签，否则直接显示 `--`。
-
-4. 价格显示并不等于完整计费逻辑  
-   这里展示的是文本单价，来自 `pricing` 和单位费率工具函数，不代表后端结算规则的全部。
-
-5. 两个跳转入口是重复但有意的  
-   第一列整块可点，最后一列箭头也可点，这不是冗余 bug，而是为了提高表格行的可发现性和可点击性。
-
-6. 排序是前端表格排序，不是服务端排序  
-   这意味着它依赖当前 `models` 数组内容，在已有数据范围内做比较，并不会自己重新拉取或重排后端数据。
+```

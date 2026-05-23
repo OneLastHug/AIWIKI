@@ -1,0 +1,22 @@
+{
+  "status": "partial",
+  "at": 1779536061.7937005,
+  "payload": {
+    "message": "Pipeline completed with failed tasks",
+    "counts": {
+      "done": 92,
+      "failed": 28,
+      "skipped": 13577
+    },
+    "active_counts": {
+      "pending": 0,
+      "running": 0,
+      "done": 92,
+      "failed": 28
+    },
+    "skipped": 13577,
+    "total": 120,
+    "done": 92,
+    "failed": 28
+  }
+}
