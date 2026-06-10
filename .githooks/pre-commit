@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+blocked_pattern='^(data/generated/|data/repos/|data/service\.sqlite3($|-)|cache/)'
+allowed_pattern='^(data/generated/\.gitkeep|data/repos/\.gitkeep)$'
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+blocked=$(printf '%s\n' "$staged" | grep -E "$blocked_pattern" | grep -Ev "$allowed_pattern" || true)
+if [ -n "$blocked" ]; then
+  echo "Refusing commit: local-only analysis artifacts or mirrored source are staged:" >&2
+  echo "$blocked" >&2
+  echo "These files may contain proprietary repository source or generated docs. Keep them local." >&2
+  exit 1
+fi

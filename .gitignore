@@ -2,16 +2,25 @@ __pycache__/
 *.py[cod]
 .env
 .DS_Store
+
+# Runtime temp/cache
+cache/
 data/tmp/*
 !data/tmp/.gitkeep
-data/repos/*
-!data/repos/.gitkeep
-data/service.sqlite3
-data/service.sqlite3-*
-# Generated-doc regeneration backups
-data/generated/*.bak-*
-data/generated/*/codex_debug/
-data/generated/*/codex_failures.log
 
-# Generated runtime state databases
-data/generated/*/state.sqlite3*
+# Source mirrors and runtime databases
+/data/repos/*
+!/data/repos/.gitkeep
+/data/service.sqlite3
+/data/service.sqlite3-*
+
+# Generated docs and analysis artifacts are local-only by default.
+# They may contain proprietary source structure, code summaries, and debug traces.
+/data/generated/*
+!/data/generated/.gitkeep
+
+# Extra defense for nested runtime artifacts
+/data/generated/*.bak-*
+/data/generated/*/codex_debug/
+/data/generated/*/codex_failures.log
+/data/generated/*/state.sqlite3*

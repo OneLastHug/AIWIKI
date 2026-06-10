@@ -47,10 +47,12 @@ data/generated/<repo_id>/
 
 ## 安全限制
 
-- 不接受任意域名 git URL，只接受 `[URL已移除] 和 `[URL已移除]
+- 不接受任意域名 git URL，只接受 `[URL已移除] 和 `[URL已移除]`
 - 本地路径限制在 `/data/project`。
 - 跳过 `.git,node_modules,dist,build,target,.next,coverage,.venv,__pycache__`。
 - 跳过 `.env,id_rsa,*.pem,*.key` 等敏感文件。
+- `data/repos/`、`data/generated/`、`data/service.sqlite3*` 与 `cache/` 默认只保留在本地，不纳入版本控制，也不允许推送到远端。
+- 仓库已启用本地 `pre-commit` / `pre-push` 钩子；若把解析文档、源码镜像或运行数据库加进提交，会被直接拒绝。
 
 ## 注意
 
