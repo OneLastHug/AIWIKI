@@ -1,0 +1,268 @@
+{
+  "critical_directories": [
+    {
+      "path": "packages/desktop/src",
+      "priority": "P0",
+      "reason": "桌面主应用源码根，包含 main、preload、renderer、common 和 process，是理解应用主体的第一入口。"
+    },
+    {
+      "path": "packages/desktop/src/process",
+      "priority": "P0",
+      "reason": "Electron main 进程支撑层，负责后端启动、原生桥、存储初始化、数据库迁移、托盘、更新和系统能力。"
+    },
+    {
+      "path": "packages/desktop/src/renderer",
+      "priority": "P0",
+      "reason": "React UI 层，包含路由、会话页、设置页、团队、定时任务、预览和共享组件。"
+    },
+    {
+      "path": "packages/desktop/src/common",
+      "priority": "P0",
+      "reason": "跨 main/renderer/WebUI 共享的类型、配置、adapter 和工具层，定义业务 API 门面和数据合同。"
+    },
+    {
+      "path": "packages/web-host/src",
+      "priority": "P0",
+      "reason": "WebUI host 层，负责启动 aioncore、服务静态 renderer、代理 HTTP/WebSocket，且无 Electron 依赖。"
+    },
+    {
+      "path": "packages/web-cli/src",
+      "priority": "P1",
+      "reason": "独立 WebUI CLI 入口，解释非 Electron 运行、远程访问、数据目录和 reset password 流程。"
+    },
+    {
+      "path": "mobile/src",
+      "priority": "P1",
+      "reason": "Expo/React Native 客户端源码，可验证后端 API 和 WebSocket 如何被移动端复用。"
+    },
+    {
+      "path": "examples",
+      "priority": "P1",
+      "reason": "扩展 manifest 和 contributes 样例，适合理解 agent、assistant、MCP、skills、theme、channel 的扩展形态。"
+    },
+    {
+      "path": "tests",
+      "priority": "P2",
+      "reason": "单元、集成、端到端测试集合，用于验证业务边界、WebUI host、扩展和 renderer 行为。"
+    },
+    {
+      "path": "docs/guides",
+      "priority": "P2",
+      "reason": "运行和部署指南，补充 WebUI、server 部署、CDP、Hub 测试等操作语境。"
+    }
+  ],
+  "critical_files": [
+    {
+      "path": "package.json",
+      "priority": "P0",
+      "reason": "根工作区、脚本、依赖、版本和构建入口的总信号。"
+    },
+    {
+      "path": "bun.lock",
+      "priority": "P1",
+      "reason": "锁定 Bun 依赖版本，确认项目实际包解析。"
+    },
+    {
+      "path": "tsconfig.json",
+      "priority": "P1",
+      "reason": "TypeScript 编译和路径约束入口。"
+    },
+    {
+      "path": "vitest.config.ts",
+      "priority": "P1",
+      "reason": "测试框架配置入口，说明单元和集成测试环境。"
+    },
+    {
+      "path": "uno.config.ts",
+      "priority": "P1",
+      "reason": "UnoCSS token 与 utility 配置入口，影响 renderer 样式体系。"
+    },
+    {
+      "path": "packages/desktop/electron.vite.config.ts",
+      "priority": "P0",
+      "reason": "Electron main、preload、renderer 三套 bundle 的构建配置和 alias 来源。"
+    },
+    {
+      "path": "packages/desktop/src/index.ts",
+      "priority": "P0",
+      "reason": "Electron main 入口，串起单实例锁、初始化、后端启动、窗口创建和系统集成。"
+    },
+    {
+      "path": "packages/desktop/src/process/index.ts",
+      "priority": "P0",
+      "reason": "主进程初始化入口，调用存储初始化并加载主进程 i18n。"
+    },
+    {
+      "path": "packages/desktop/src/process/startup/backendStartup.ts",
+      "priority": "P0",
+      "reason": "后端启动结果和失败退出逻辑的薄封装。"
+    },
+    {
+      "path": "packages/desktop/src/process/backend/binaryResolver.ts",
+      "priority": "P0",
+      "reason": "解释 aioncore 二进制从 bundled resources 或系统 PATH 解析的规则。"
+    },
+    {
+      "path": "packages/desktop/src/process/utils/initStorage.ts",
+      "priority": "P0",
+      "reason": "主进程旧存储、数据目录、迁移和 ProcessConfig 的核心文件。"
+    },
+    {
+      "path": "packages/desktop/src/process/services/database/schema.ts",
+      "priority": "P1",
+      "reason": "SQLite 用户、会话、消息、团队、邮箱和任务表结构的种子文件。"
+    },
+    {
+      "path": "packages/desktop/src/preload/main.ts",
+      "priority": "P0",
+      "reason": "renderer 与 Electron main 的安全边界，暴露后端端口、electronAPI 和托盘事件。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/main.tsx",
+      "priority": "P0",
+      "reason": "React renderer 入口，初始化 Sentry、adapter、配置、i18n、主题、认证和全局 providers。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/components/layout/Router.tsx",
+      "priority": "P0",
+      "reason": "页面路由总表，定位 guid、conversation、team、settings、scheduled 等入口。"
+    },
+    {
+      "path": "packages/desktop/src/common/adapter/ipcBridge.ts",
+      "priority": "P0",
+      "reason": "业务 API 门面，说明哪些调用映射到 HTTP REST、哪些事件来自 WebSocket。"
+    },
+    {
+      "path": "packages/desktop/src/common/adapter/httpBridge.ts",
+      "priority": "P0",
+      "reason": "HTTP/WS adapter 底层 helper，是 ipcBridge 运行的基础。"
+    },
+    {
+      "path": "packages/desktop/src/common/config/configService.ts",
+      "priority": "P0",
+      "reason": "renderer/WebUI 设置加载、缓存、订阅和写回 `/api/settings/client` 的入口。"
+    },
+    {
+      "path": "packages/desktop/src/common/config/storage.ts",
+      "priority": "P0",
+      "reason": "配置、会话、provider、MCP、assistant、team 等共享类型合同。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/guid/hooks/useGuidSend.ts",
+      "priority": "P0",
+      "reason": "首页创建会话和首条消息暂存的关键链路。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/conversation/index.tsx",
+      "priority": "P0",
+      "reason": "会话路由入口，负责读取会话、刷新标题和选择聊天组件。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/conversation/platforms/acp/AcpChat.tsx",
+      "priority": "P0",
+      "reason": "ACP 会话 UI 的组合入口。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx",
+      "priority": "P0",
+      "reason": "ACP 消息发送、模式切换、附件、初始消息和命令队列的核心 UI。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts",
+      "priority": "P0",
+      "reason": "ACP 流式消息、thinking、运行状态和 slash commands 的订阅处理。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/conversation/platforms/aionrs/AionrsChat.tsx",
+      "priority": "P1",
+      "reason": "内置 aionrs/Aion CLI 会话 UI 的组合入口。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/conversation/platforms/aionrs/useAionrsMessage.ts",
+      "priority": "P1",
+      "reason": "aionrs 流式消息、工具状态、token usage 和本地 cron 响应处理。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/cron/useCronJobs.ts",
+      "priority": "P1",
+      "reason": "定时任务列表、状态订阅和操作入口。"
+    },
+    {
+      "path": "packages/desktop/src/renderer/pages/team/index.tsx",
+      "priority": "P1",
+      "reason": "团队模式页面入口，连接路由和 team API。"
+    },
+    {
+      "path": "packages/web-host/src/index.ts",
+      "priority": "P0",
+      "reason": "WebHost 组合后端生命周期和静态服务的主入口。"
+    },
+    {
+      "path": "packages/web-host/src/backend-launcher.ts",
+      "priority": "P0",
+      "reason": "aioncore 子进程启动、健康检查、失败诊断、崩溃处理和关闭逻辑。"
+    },
+    {
+      "path": "packages/web-host/src/static-server.ts",
+      "priority": "P0",
+      "reason": "WebUI 静态文件服务、API 反向代理和 WebSocket TCP 转发。"
+    },
+    {
+      "path": "packages/web-cli/src/index.ts",
+      "priority": "P1",
+      "reason": "独立 WebUI CLI 参数解析、frontend-only、WebHost 启动和 resetpass。"
+    },
+    {
+      "path": "mobile/package.json",
+      "priority": "P2",
+      "reason": "移动端 Expo/React Native 技术栈和脚本入口。"
+    },
+    {
+      "path": "mobile/src/services/api.ts",
+      "priority": "P2",
+      "reason": "移动端访问后端 HTTP API 的种子文件。"
+    },
+    {
+      "path": "examples/hello-world-extension/aion-extension.json",
+      "priority": "P2",
+      "reason": "扩展 manifest 示例，展示 agent、assistant、MCP、settings、skills、themes 的贡献入口。"
+    },
+    {
+      "path": "docs/contributing/development.md",
+      "priority": "P2",
+      "reason": "开发环境、脚本、测试和构建命令说明。"
+    },
+    {
+      "path": "docs/guides/webui.md",
+      "priority": "P2",
+      "reason": "桌面 WebUI 模式使用语境。"
+    },
+    {
+      "path": "docs/guides/deploy-server.md",
+      "priority": "P2",
+      "reason": "无头服务器部署与远程访问语境。"
+    }
+  ],
+  "reading_order": [
+    {
+      "path": "00-overview.md",
+      "title": "项目整体介绍"
+    },
+    {
+      "path": "01-tech-stack.md",
+      "title": "技术栈与运行环境"
+    },
+    {
+      "path": "02-architecture.md",
+      "title": "架构与模块边界"
+    },
+    {
+      "path": "03-runtime-flow.md",
+      "title": "运行流程与关键调用链"
+    },
+    {
+      "path": "04-reading-guide.md",
+      "title": "源码阅读指南"
+    }
+  ]
+}

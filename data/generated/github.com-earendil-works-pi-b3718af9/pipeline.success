@@ -1,0 +1,21 @@
+{
+  "status": "completed",
+  "at": 1781062649.7549176,
+  "payload": {
+    "message": "Pipeline completed successfully",
+    "counts": {
+      "done": 120,
+      "skipped": 724
+    },
+    "active_counts": {
+      "pending": 0,
+      "running": 0,
+      "done": 120,
+      "failed": 0
+    },
+    "skipped": 724,
+    "total": 120,
+    "done": 120,
+    "failed": 0
+  }
+}

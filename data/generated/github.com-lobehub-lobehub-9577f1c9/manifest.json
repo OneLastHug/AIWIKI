@@ -6,6 +6,7 @@
     "02-architecture.md",
     "03-runtime-flow.md",
     "04-reading-guide.md",
+    "05-testing-architecture.md",
     "directories/src.md",
     "directories/packages.md",
     "directories/apps.md",
@@ -63,5 +64,5 @@
     "files/packages__model-runtime__src__providers__upstage__index.ts.md"
   ],
   "source": "https://github.com/lobehub/lobehub.git",
-  "generated_at": 1779533422.4466417
+  "generated_at": 1779982509.773603
 }

@@ -1,0 +1,13 @@
+# 技术栈与运行环境
+
+这个仓库的技术栈信号分布在 `README.md`、`next/package.json`、`platform/pyproject.toml`、`docker-compose.yml`、`next/next.config.mjs`、`.env.example` 和各自 Dockerfile 中。前端部分位于 `next`，`package.json` 指定 Node 版本范围为 `>=18.0.0 <19.0.0`，脚本包括 `dev`、`build`、`start`、`test`、`lint`，依赖中能看到 `next`、`react`、`typescript`、`tailwindcss`、`next-auth`、`@trpc/*`、`@prisma/client`、`zustand`、`zod`、`axios`、`openai`、`i18next` 等。它使用 Next.js Pages Router，因为页面目录是 `next/src/pages`，API 路由也在 `next/src/pages/api`。
+
+前端需要知道几个概念。`NextAuth` 负责 session，入口是 `next/src/pages/api/auth/[...nextauth].ts`，配置在 `next/src/server/auth`。开发环境下 `authOptions` 会合并 `local-auth` 与 Prisma adapter；生产配置使用 Google、GitHub、Discord providers，具体 provider 配置在 `next/src/server/auth/auth.ts`。tRPC 负责前端到 Next.js 服务端的类型安全 API，`next/src/server/api/root.ts` 注册 `agentRouter`，`next/src/utils/api.ts` 创建 React Query hooks。Prisma 负责 Next.js 服务端访问 MySQL，schema 位于 `next/prisma/schema.prisma`，其中包含 NextAuth 表、`Agent`、`AgentTask`、组织、OAuth credential 和 run/task 表。
+
+后端位于 `platform`，`pyproject.toml` 指定 Python `^3.11`，使用 Poetry 管理依赖。核心依赖包括 `fastapi`、`uvicorn`、`pydantic<2`、`sqlalchemy[asyncio]`、`aiomysql`、`mysqlclient`、`langchain`、`openai`、`lanarky`、`tiktoken`、`replicate`、`pinecone-client`、`boto3`、`cryptography`、`httpx`、`pytest` 等。入口 `platform/reworkd_platform/__main__.py` 调用 `uvicorn.run`，应用工厂 `get_app()` 在 `platform/reworkd_platform/web/application.py`，它注册 CORS、startup/shutdown、`/api` 主路由与异常处理。
+
+构建与部署层面，根目录 `docker-compose.yml` 编排三个服务：`frontend` 基于 `next/Dockerfile`，暴露前端端口；`platform` 基于 `platform/Dockerfile`，通过 `env_file` 读取 `next/.env`，并设置数据库连接环境变量；`agentgpt_db` 使用 MySQL 8.0，构建上下文是 `db`。`next/Dockerfile` 使用 Node alpine 镜像、`npm ci`、`entrypoint.sh` 和 `npm run dev`；`platform/Dockerfile` 使用 Python slim、安装 Poetry、安装 main 依赖并运行 `python -m reworkd_platform`。CLI 的 `setup.sh`/`setup.bat` 最终进入 `cli`，由 Node 脚本生成环境文件或启动 Docker Compose。
+
+配置加载有两套机制。Next.js 侧在 `next/src/env/schema.mjs` 用 Zod 校验 server/client 环境变量，`next/src/env/server.mjs` 还会防止服务端变量误以 `NEXT_PUBLIC_` 暴露；`next/src/env/client.mjs` 要求客户端变量必须有 `NEXT_PUBLIC_` 前缀。FastAPI 侧在 `platform/reworkd_platform/settings.py` 通过 Pydantic `BaseSettings` 加载以 `REWORKD_PLATFORM_` 为前缀的变量，包括 OpenAI、Helicone、Replicate、Serper、数据库、Pinecone、Sentry、Kafka、SID OAuth、最大循环数等配置。
+
+读源码前建议先掌握三个项目内概念。第一，`AgentRunModel` 是前端抽象，不是后端模型；它通过 Zustand store 读写当前任务、生命周期和执行结果。第二，`AgentApi` 是浏览器到 FastAPI 的薄封装，普通 JSON 请求用 `axios`，流式请求用 `fetch` 读取 `ReadableStream`。第三，后端 `AgentService` 是协议接口，实际实现有 `OpenAIAgentService` 和 `MockAgentService`，是否使用 mock 由 `settings.ff_mock_mode_enabled` 决定。根据当前文件推断，正常运行路径依赖用户已登录，因为 FastAPI 的 agent validators 依赖 `get_current_user`，而 `get_current_user` 从 Authorization bearer token 查 NextAuth session。

@@ -1,0 +1,238 @@
+{
+  "critical_directories": [
+    {
+      "path": "src",
+      "priority": "P0",
+      "reason": "核心 TypeScript 源码，包含 CLI、Gateway、agent、channel、plugin、config、session、tool 等主要运行层。"
+    },
+    {
+      "path": "src/gateway",
+      "priority": "P0",
+      "reason": "本地 Gateway 控制面的启动、HTTP/WebSocket、协议、method registry、配置热重载和后台服务都在这里。"
+    },
+    {
+      "path": "src/agents",
+      "priority": "P0",
+      "reason": "agent run、模型选择、auth profile、skills、sandbox、tool policy、workspace 和执行尝试的核心目录。"
+    },
+    {
+      "path": "src/channels",
+      "priority": "P0",
+      "reason": "多消息渠道的通用 contract、message lifecycle、allowlist、DM/group policy、session routing 和 plugin channel registry。"
+    },
+    {
+      "path": "src/plugins",
+      "priority": "P0",
+      "reason": "插件加载、manifest/registry、runtime 绑定和插件边界管理，是理解扩展系统的核心。"
+    },
+    {
+      "path": "src/plugin-sdk",
+      "priority": "P1",
+      "reason": "core 内暴露给插件的 SDK facade 和 runtime helper，说明插件能合法使用哪些能力。"
+    },
+    {
+      "path": "packages/plugin-sdk",
+      "priority": "P1",
+      "reason": "workspace 形式的插件 SDK 包，帮助理解公开 SDK 类型和子路径导出。"
+    },
+    {
+      "path": "extensions",
+      "priority": "P1",
+      "reason": "真实插件集合，包含 provider、channel、tool、media、memory、diagnostics 等能力的实现样例。"
+    },
+    {
+      "path": "ui",
+      "priority": "P2",
+      "reason": "Control UI 前端，适合在理解 Gateway 协议和控制面后阅读。"
+    },
+    {
+      "path": "apps",
+      "priority": "P2",
+      "reason": "macOS、iOS、Android companion app 和节点相关工程，适合后续按平台专题阅读。"
+    },
+    {
+      "path": "docs",
+      "priority": "P2",
+      "reason": "用户文档源和导航配置，可补充产品概念，但源码判断仍需回到代码。"
+    },
+    {
+      "path": "scripts",
+      "priority": "P2",
+      "reason": "构建、测试、生成、质量检查和发布自动化脚本，解释 package.json 中大量命令。"
+    }
+  ],
+  "critical_files": [
+    {
+      "path": "README.md",
+      "priority": "P0",
+      "reason": "项目定位、核心能力、安全默认值、开发方式和用户视角入口。"
+    },
+    {
+      "path": "package.json",
+      "priority": "P0",
+      "reason": "CLI bin、exports、engines、scripts、依赖、发布文件范围和 workspace 根包信号。"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "priority": "P0",
+      "reason": "确认 workspace 结构、pnpm 策略、依赖 override、patched dependency 和 build allowlist。"
+    },
+    {
+      "path": "openclaw.mjs",
+      "priority": "P0",
+      "reason": "实际 CLI 二进制入口，负责 Node 版本检查、source checkout 判断和 compile cache respawn。"
+    },
+    {
+      "path": "src/entry.ts",
+      "priority": "P0",
+      "reason": "源码 CLI 入口，处理 argv/profile/container/help fast path 后进入 runCli。"
+    },
+    {
+      "path": "src/cli/gateway-cli/run.ts",
+      "priority": "P0",
+      "reason": "Gateway 命令启动前的配置、端口、bind、auth、tailscale、dev/reset 和安全 guard。"
+    },
+    {
+      "path": "src/cli/gateway-cli/run-loop.ts",
+      "priority": "P0",
+      "reason": "Gateway 长进程运行循环，包含 lock、signal、restart、update respawn、shutdown 和健康探测。"
+    },
+    {
+      "path": "src/gateway/server.ts",
+      "priority": "P0",
+      "reason": "Gateway server 懒加载入口，指向真正实现 server.impl.ts。"
+    },
+    {
+      "path": "src/gateway/server.impl.ts",
+      "priority": "P0",
+      "reason": "Gateway 启动主实现，串联配置、插件、HTTP/WebSocket、request context、post-attach 和 reload。"
+    },
+    {
+      "path": "src/gateway/server-startup-plugins.ts",
+      "priority": "P0",
+      "reason": "启动期插件准备、自动启用、lookup table、startup plugin ids 和 default workspace 解析。"
+    },
+    {
+      "path": "src/gateway/server-plugin-bootstrap.ts",
+      "priority": "P0",
+      "reason": "插件 runtime environment、Gateway bindings、channel registry 和 configured binding registry 的关键桥。"
+    },
+    {
+      "path": "src/gateway/methods/registry.ts",
+      "priority": "P0",
+      "reason": "Gateway method descriptor、scope、handler 查找和插件 method 合入规则。"
+    },
+    {
+      "path": "src/gateway/server-request-context.ts",
+      "priority": "P0",
+      "reason": "所有 Gateway method handler 使用的运行时上下文集合。"
+    },
+    {
+      "path": "src/gateway/server-ws-runtime.ts",
+      "priority": "P0",
+      "reason": "WebSocket handler attach 入口，将 method registry、auth、events 和 request context 接到连接层。"
+    },
+    {
+      "path": "src/config/config.ts",
+      "priority": "P0",
+      "reason": "配置 IO、runtime snapshot、mutation、paths、validation、recovery 的统一 re-export 面。"
+    },
+    {
+      "path": "src/agents/agent-command.ts",
+      "priority": "P0",
+      "reason": "一次 agent run 的核心聚合点，连接 session、model、auth、skills、ACP、delivery 和 execution。"
+    },
+    {
+      "path": "src/commands/agent.ts",
+      "priority": "P1",
+      "reason": "agent 命令的 re-export 入口，说明实际实现位于 src/agents/agent-command.ts。"
+    },
+    {
+      "path": "src/channels/message/receive.ts",
+      "priority": "P1",
+      "reason": "入站消息 receive context 和 ack policy 的最小可读入口。"
+    },
+    {
+      "path": "src/channels/message/send.ts",
+      "priority": "P1",
+      "reason": "出站消息发送逻辑的关键入口之一。"
+    },
+    {
+      "path": "src/channels/message/reply-pipeline.ts",
+      "priority": "P1",
+      "reason": "channel 回复管线，适合理解 agent 输出如何回到消息渠道。"
+    },
+    {
+      "path": "src/channels/plugins/registry.ts",
+      "priority": "P1",
+      "reason": "channel plugin registry，是具体 channel 插件接入 core 的重要种子。"
+    },
+    {
+      "path": "src/plugins/loader.ts",
+      "priority": "P1",
+      "reason": "插件加载实现入口，帮助理解 manifest 到 runtime registry 的过程。"
+    },
+    {
+      "path": "src/plugins/plugin-lookup-table.ts",
+      "priority": "P1",
+      "reason": "启动和配置相关插件索引表，解释 Gateway 如何准备 process-stable 插件事实。"
+    },
+    {
+      "path": "src/plugins/registry.ts",
+      "priority": "P1",
+      "reason": "插件 registry 数据结构，承载 provider、channel、tool、HTTP route、gateway handler 等能力。"
+    },
+    {
+      "path": "src/gateway/protocol/index.ts",
+      "priority": "P1",
+      "reason": "Gateway protocol 的公开聚合入口，适合理解客户端和 app 交互的类型面。"
+    },
+    {
+      "path": "ui/package.json",
+      "priority": "P2",
+      "reason": "Control UI 的 Vite、Lit、Vitest、Playwright 技术栈和脚本入口。"
+    },
+    {
+      "path": "docs/docs.json",
+      "priority": "P2",
+      "reason": "文档信息架构配置，帮助按用户视角补充概念。"
+    },
+    {
+      "path": "apps/macos/Package.swift",
+      "priority": "P2",
+      "reason": "macOS companion app 的 Swift Package 入口。"
+    },
+    {
+      "path": "apps/ios/project.yml",
+      "priority": "P2",
+      "reason": "iOS app 的 XcodeGen 项目入口。"
+    },
+    {
+      "path": "apps/android/build.gradle.kts",
+      "priority": "P2",
+      "reason": "Android app 的 Gradle 构建入口。"
+    }
+  ],
+  "reading_order": [
+    {
+      "path": "00-overview.md",
+      "title": "项目整体介绍"
+    },
+    {
+      "path": "01-tech-stack.md",
+      "title": "技术栈与运行环境"
+    },
+    {
+      "path": "02-architecture.md",
+      "title": "架构分层与模块边界"
+    },
+    {
+      "path": "03-runtime-flow.md",
+      "title": "运行流程与关键调用链"
+    },
+    {
+      "path": "04-reading-guide.md",
+      "title": "源码阅读指南"
+    }
+  ]
+}

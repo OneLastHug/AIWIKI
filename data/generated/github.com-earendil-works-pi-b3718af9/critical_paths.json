@@ -1,0 +1,258 @@
+{
+  "critical_directories": [
+    {
+      "path": "packages/coding-agent/src",
+      "priority": "P0",
+      "reason": "pi CLI 产品层源码，包含启动入口、core runtime、modes 和平台工具，是理解用户可见行为的首要目录。"
+    },
+    {
+      "path": "packages/coding-agent/src/core",
+      "priority": "P0",
+      "reason": "会话、设置、认证、模型、资源、扩展、工具、系统 prompt、compaction 和 runtime 服务在这里汇合。"
+    },
+    {
+      "path": "packages/agent/src",
+      "priority": "P0",
+      "reason": "底层 Agent 状态机和 agent-loop 所在目录，解释 LLM 调用、工具执行和事件流。"
+    },
+    {
+      "path": "packages/ai/src",
+      "priority": "P0",
+      "reason": "统一 LLM API、provider registry、模型类型、stream 事件和 OAuth/provider 实现所在目录。"
+    },
+    {
+      "path": "packages/tui/src",
+      "priority": "P1",
+      "reason": "interactive mode 的终端渲染、输入、组件和 keybinding 基础库。"
+    },
+    {
+      "path": "packages/coding-agent/src/modes",
+      "priority": "P1",
+      "reason": "同一 AgentSessionRuntime 被包装成 interactive、print/json 和 RPC 的 I/O 边界。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/tools",
+      "priority": "P1",
+      "reason": "内置 read/bash/edit/write/grep/find/ls 工具定义、执行逻辑和渲染逻辑。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/extensions",
+      "priority": "P1",
+      "reason": "扩展加载、扩展 API、事件 runner 和工具包装，是项目可扩展性的核心。"
+    },
+    {
+      "path": "packages/agent/src/harness",
+      "priority": "P2",
+      "reason": "公开 AgentHarness、ExecutionEnv、session repo、compaction、skills 等通用运行时能力。"
+    },
+    {
+      "path": "packages/coding-agent/docs",
+      "priority": "P2",
+      "reason": "把 settings、sessions、extensions、skills、RPC、providers 等源码概念映射到用户文档。"
+    },
+    {
+      "path": "packages/coding-agent/test",
+      "priority": "P2",
+      "reason": "覆盖 session、compaction、extensions、tools、RPC、model-registry 等关键行为和回归场景。"
+    }
+  ],
+  "critical_files": [
+    {
+      "path": "README.md",
+      "priority": "P0",
+      "reason": "根项目定位、包职责、开发命令和供应链约束的总说明。"
+    },
+    {
+      "path": "package.json",
+      "priority": "P0",
+      "reason": "npm workspaces、Node 引擎、构建/检查/发布脚本和根依赖的事实来源。"
+    },
+    {
+      "path": "tsconfig.json",
+      "priority": "P0",
+      "reason": "源码路径别名、include/exclude 和 TypeScript 检查范围。"
+    },
+    {
+      "path": "tsconfig.base.json",
+      "priority": "P0",
+      "reason": "ESM、Node16 module resolution、strict、erasableSyntaxOnly 和 import 扩展规则。"
+    },
+    {
+      "path": "packages/coding-agent/package.json",
+      "priority": "P0",
+      "reason": "pi CLI 包的 bin、构建脚本、运行依赖、发布文件和 piConfig。"
+    },
+    {
+      "path": "packages/coding-agent/README.md",
+      "priority": "P0",
+      "reason": "coding-agent 的对外能力说明：模式、工具、sessions、settings、扩展和项目 trust。"
+    },
+    {
+      "path": "packages/coding-agent/src/cli.ts",
+      "priority": "P0",
+      "reason": "发布命令的源码入口，设置进程环境并调用 main。"
+    },
+    {
+      "path": "packages/coding-agent/src/main.ts",
+      "priority": "P0",
+      "reason": "CLI 启动编排中心，覆盖参数解析、模式判断、session、trust、runtime 和 mode 启动。"
+    },
+    {
+      "path": "packages/coding-agent/src/cli/args.ts",
+      "priority": "P1",
+      "reason": "所有 CLI 参数和帮助文本的定义，解释外部命令如何映射到运行选项。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/sdk.ts",
+      "priority": "P0",
+      "reason": "createAgentSession 工厂，组合 Agent、模型、工具、资源、扩展和 session。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/agent-session.ts",
+      "priority": "P0",
+      "reason": "产品层核心状态机，负责事件持久化、扩展、工具、prompt、compaction、retry 和模型控制。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/agent-session-services.ts",
+      "priority": "P0",
+      "reason": "创建 cwd-bound services：AuthStorage、SettingsManager、ModelRegistry、ResourceLoader。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/agent-session-runtime.ts",
+      "priority": "P0",
+      "reason": "持有当前 session 与 services，并实现 switch/new/fork/clone 等 runtime 替换。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/session-manager.ts",
+      "priority": "P0",
+      "reason": "JSONL session 文件、树状 parentId、branch、compaction context 还原的核心。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/settings-manager.ts",
+      "priority": "P1",
+      "reason": "全局与项目 settings 的加载、合并、迁移、写入和 project trust gating。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/resource-loader.ts",
+      "priority": "P1",
+      "reason": "加载 extensions、skills、prompts、themes、AGENTS/CLAUDE 文件和 system prompt。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/model-registry.ts",
+      "priority": "P1",
+      "reason": "内置模型、自定义 models.json、OAuth、API key、扩展 provider 的合并入口。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/model-resolver.ts",
+      "priority": "P1",
+      "reason": "CLI model pattern、scoped models、默认模型和 thinking level 解析。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/extensions/loader.ts",
+      "priority": "P1",
+      "reason": "用 jiti 加载扩展并向扩展提供 API、虚拟模块和 alias。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/extensions/types.ts",
+      "priority": "P1",
+      "reason": "扩展上下文、UI context、事件、工具、provider、命令等公共类型边界。"
+    },
+    {
+      "path": "packages/coding-agent/src/core/tools/index.ts",
+      "priority": "P1",
+      "reason": "内置工具集合和工具定义工厂的集中入口。"
+    },
+    {
+      "path": "packages/coding-agent/src/modes/print-mode.ts",
+      "priority": "P1",
+      "reason": "单次 prompt 输出文本或 JSON 事件的实现。"
+    },
+    {
+      "path": "packages/coding-agent/src/modes/rpc/rpc-mode.ts",
+      "priority": "P1",
+      "reason": "headless JSONL RPC 模式的命令处理和事件输出。"
+    },
+    {
+      "path": "packages/coding-agent/src/modes/rpc/rpc-types.ts",
+      "priority": "P1",
+      "reason": "RPC command、response、session state 和 extension UI 协议类型。"
+    },
+    {
+      "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "priority": "P1",
+      "reason": "TUI 模式主类，负责 editor、消息、工具、footer、selector、扩展 UI 和快捷键。"
+    },
+    {
+      "path": "packages/agent/src/agent.ts",
+      "priority": "P0",
+      "reason": "底层 Agent 状态、队列、事件订阅、prompt/continue/abort 的封装。"
+    },
+    {
+      "path": "packages/agent/src/agent-loop.ts",
+      "priority": "P0",
+      "reason": "用户消息到 LLM、tool call、tool result、下一轮和 agent_end 的核心循环。"
+    },
+    {
+      "path": "packages/agent/src/harness/agent-harness.ts",
+      "priority": "P2",
+      "reason": "更通用的 AgentHarness 实现，适合理解 SDK/嵌入式运行时方向。"
+    },
+    {
+      "path": "packages/ai/src/types.ts",
+      "priority": "P0",
+      "reason": "Model、Message、ToolCall、StreamOptions、Transport 等跨 provider 类型定义。"
+    },
+    {
+      "path": "packages/ai/src/api-registry.ts",
+      "priority": "P0",
+      "reason": "api 到 provider stream 实现的注册表。"
+    },
+    {
+      "path": "packages/ai/src/stream.ts",
+      "priority": "P0",
+      "reason": "统一 stream/complete/streamSimple/completeSimple 调用入口。"
+    },
+    {
+      "path": "packages/ai/src/providers/register-builtins.ts",
+      "priority": "P1",
+      "reason": "内置 provider API 的 lazy registration。"
+    },
+    {
+      "path": "packages/tui/src/tui.ts",
+      "priority": "P1",
+      "reason": "终端 UI render loop、focus、overlay 和输入管理核心。"
+    },
+    {
+      "path": "packages/tui/src/components/editor.ts",
+      "priority": "P2",
+      "reason": "交互输入编辑器基础组件，interactive mode 的输入体验依赖它。"
+    },
+    {
+      "path": "test.sh",
+      "priority": "P2",
+      "reason": "仓库测试入口，展示如何避免真实 provider API key 影响测试。"
+    }
+  ],
+  "reading_order": [
+    {
+      "path": "00-overview.md",
+      "title": "项目整体介绍"
+    },
+    {
+      "path": "01-tech-stack.md",
+      "title": "技术栈与运行环境"
+    },
+    {
+      "path": "02-architecture.md",
+      "title": "架构与模块边界"
+    },
+    {
+      "path": "03-runtime-flow.md",
+      "title": "运行时流程"
+    },
+    {
+      "path": "04-reading-guide.md",
+      "title": "源码阅读指南"
+    }
+  ]
+}

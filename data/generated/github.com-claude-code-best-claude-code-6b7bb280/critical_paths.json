@@ -1,0 +1,253 @@
+{
+  "critical_directories": [
+    {
+      "path": "src",
+      "priority": "P0",
+      "reason": "CLI 主体源码目录，包含入口、REPL、查询循环、服务、状态、命令和工具装配。"
+    },
+    {
+      "path": "src/entrypoints",
+      "priority": "P0",
+      "reason": "进程启动、快速路径分发和一次性初始化逻辑所在，是理解运行模式的第一入口。"
+    },
+    {
+      "path": "src/services/api",
+      "priority": "P0",
+      "reason": "模型 API 请求、provider 兼容层、streaming/non-streaming、错误和 usage 处理所在。"
+    },
+    {
+      "path": "src/services/tools",
+      "priority": "P0",
+      "reason": "工具调用编排层，解释 tool_use 如何按并发安全性执行并回流 tool_result。"
+    },
+    {
+      "path": "packages/builtin-tools/src/tools",
+      "priority": "P0",
+      "reason": "内置工具实际实现目录，包含文件、Shell、Web、Agent、任务、MCP 等工具。"
+    },
+    {
+      "path": "src/state",
+      "priority": "P1",
+      "reason": "React AppState、store 和 selectors 所在，解释 TUI 如何响应会话状态。"
+    },
+    {
+      "path": "src/commands",
+      "priority": "P1",
+      "reason": "REPL slash commands 的具体实现目录，配合 src/commands.ts 理解命令扩展。"
+    },
+    {
+      "path": "src/services/mcp",
+      "priority": "P1",
+      "reason": "MCP client、transport、工具转换、资源、prompts、认证和 elicitation 处理所在。"
+    },
+    {
+      "path": "src/skills",
+      "priority": "P1",
+      "reason": "内置和动态 skills 机制所在，是模型可调用能力扩展的重要入口。"
+    },
+    {
+      "path": "packages/@ant/ink",
+      "priority": "P1",
+      "reason": "终端 UI 渲染框架，REPL 和组件层大量依赖其 Box/Text/hooks。"
+    },
+    {
+      "path": "src/bridge",
+      "priority": "P2",
+      "reason": "Remote Control/Bridge 模式实现，适合理解主循环后再读。"
+    },
+    {
+      "path": "src/services/acp",
+      "priority": "P2",
+      "reason": "ACP agent 入口和 QueryEngine 到 ACP session update 的适配层。"
+    },
+    {
+      "path": "packages/remote-control-server",
+      "priority": "P2",
+      "reason": "自托管远程控制服务和 Web UI，属于独立运行但依赖 CLI bridge 概念的模块。"
+    }
+  ],
+  "critical_files": [
+    {
+      "path": "package.json",
+      "priority": "P0",
+      "reason": "确认项目名、Bun engine、workspace、bin、scripts、依赖和发布入口。"
+    },
+    {
+      "path": "README.md",
+      "priority": "P0",
+      "reason": "提供项目定位、快速开始、feature flags 和源码运行方式。"
+    },
+    {
+      "path": "scripts/defines.ts",
+      "priority": "P0",
+      "reason": "定义 MACRO 常量和默认 feature flags，是理解条件编译的关键。"
+    },
+    {
+      "path": "build.ts",
+      "priority": "P0",
+      "reason": "Bun build 主脚本，解释入口、code splitting、dist 后处理和双运行时产物。"
+    },
+    {
+      "path": "vite.config.ts",
+      "priority": "P1",
+      "reason": "替代 Vite/Rollup 构建配置，解释 SSR target、raw asset 和 feature flags 插件。"
+    },
+    {
+      "path": "tsconfig.json",
+      "priority": "P0",
+      "reason": "说明 strict TypeScript、ESNext、bundler module resolution、JSX 和路径别名。"
+    },
+    {
+      "path": "src/entrypoints/cli.tsx",
+      "priority": "P0",
+      "reason": "真实进程入口，负责快速路径、feature-gated 模式和默认 CLI 加载。"
+    },
+    {
+      "path": "src/entrypoints/init.ts",
+      "priority": "P0",
+      "reason": "一次性初始化入口，处理配置、环境、代理、遥测、Langfuse、cleanup 等。"
+    },
+    {
+      "path": "src/main.tsx",
+      "priority": "P0",
+      "reason": "Commander CLI 定义和完整启动编排中心，连接配置、MCP、插件、REPL/headless。"
+    },
+    {
+      "path": "src/replLauncher.tsx",
+      "priority": "P0",
+      "reason": "从 CLI 挂载 Ink App 和 REPL 的短桥接文件，适合建立 UI 入口印象。"
+    },
+    {
+      "path": "src/screens/REPL.tsx",
+      "priority": "P0",
+      "reason": "交互式终端主界面，连接输入、消息、权限、工具、远程会话和状态。"
+    },
+    {
+      "path": "src/utils/handlePromptSubmit.ts",
+      "priority": "P0",
+      "reason": "用户输入进入 slash command、队列或模型查询路径的关键处理函数。"
+    },
+    {
+      "path": "src/QueryEngine.ts",
+      "priority": "P0",
+      "reason": "conversation/turn 生命周期封装，连接输入处理、上下文、query、transcript 和 usage。"
+    },
+    {
+      "path": "src/query.ts",
+      "priority": "P0",
+      "reason": "agent loop 核心，处理流式模型响应、工具回合、压缩、预算、stop hooks。"
+    },
+    {
+      "path": "src/services/api/claude.ts",
+      "priority": "P0",
+      "reason": "模型请求边界，组织 messages/tools/betas/provider 并处理流式事件和错误。"
+    },
+    {
+      "path": "src/services/api/client.ts",
+      "priority": "P0",
+      "reason": "Anthropic/云 provider client 创建、headers、认证、代理、timeout 的集中入口。"
+    },
+    {
+      "path": "src/utils/model/providers.ts",
+      "priority": "P0",
+      "reason": "API provider 选择优先级定义，解释 firstParty/bedrock/vertex/foundry/openai/gemini/grok。"
+    },
+    {
+      "path": "src/Tool.ts",
+      "priority": "P0",
+      "reason": "工具接口、权限上下文和 ToolUseContext 类型定义，是理解工具系统的基础。"
+    },
+    {
+      "path": "src/tools.ts",
+      "priority": "P0",
+      "reason": "内置工具注册、feature-gated 工具、权限过滤、MCP 工具合并的中心。"
+    },
+    {
+      "path": "src/services/tools/toolOrchestration.ts",
+      "priority": "P0",
+      "reason": "工具串行/并发执行策略和 tool_result update 生成入口。"
+    },
+    {
+      "path": "src/context.ts",
+      "priority": "P0",
+      "reason": "系统上下文和用户上下文构造，包含 git status、CLAUDE.md、日期等。"
+    },
+    {
+      "path": "src/commands.ts",
+      "priority": "P1",
+      "reason": "会话内命令、skills、plugins、workflow commands 的聚合和过滤入口。"
+    },
+    {
+      "path": "src/state/AppStateStore.ts",
+      "priority": "P1",
+      "reason": "AppState 类型和默认状态结构，解释 TUI 可响应状态的范围。"
+    },
+    {
+      "path": "src/state/AppState.tsx",
+      "priority": "P1",
+      "reason": "AppStateProvider 和 useAppState selector 实现，连接 React 组件与 store。"
+    },
+    {
+      "path": "src/bootstrap/state.ts",
+      "priority": "P1",
+      "reason": "会话级模块状态，包含 cwd、sessionId、成本、token、telemetry、last API request。"
+    },
+    {
+      "path": "src/services/mcp/client.ts",
+      "priority": "P1",
+      "reason": "MCP 连接、tools/resources/prompts、认证、输出截断和工具调用的主要实现。"
+    },
+    {
+      "path": "src/skills/bundled/index.ts",
+      "priority": "P1",
+      "reason": "内置 skills 注册入口，说明新增 bundled skill 的模式。"
+    },
+    {
+      "path": "src/plugins/bundled/index.ts",
+      "priority": "P1",
+      "reason": "内置插件注册入口，说明插件化能力如何进入 CLI。"
+    },
+    {
+      "path": "packages/builtin-tools/package.json",
+      "priority": "P1",
+      "reason": "内置工具包导出规则，解释 src/tools.ts 为何能 import ./tools/*。"
+    },
+    {
+      "path": "packages/@ant/ink/package.json",
+      "priority": "P1",
+      "reason": "终端 UI 框架包信息，说明 @anthropic/ink 的本地 workspace 来源。"
+    },
+    {
+      "path": "packages/acp-link/package.json",
+      "priority": "P2",
+      "reason": "ACP proxy server 包入口和运行脚本，适合阅读 ACP 分支前查看。"
+    },
+    {
+      "path": "packages/remote-control-server/package.json",
+      "priority": "P2",
+      "reason": "远程控制服务及其 Web UI 的包配置和运行脚本。"
+    }
+  ],
+  "reading_order": [
+    {
+      "path": "00-overview.md",
+      "title": "项目整体介绍"
+    },
+    {
+      "path": "01-tech-stack.md",
+      "title": "技术栈与运行环境"
+    },
+    {
+      "path": "02-architecture.md",
+      "title": "架构分层与模块边界"
+    },
+    {
+      "path": "03-runtime-flow.md",
+      "title": "运行时流程"
+    },
+    {
+      "path": "04-reading-guide.md",
+      "title": "源码阅读指南"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "status": "completed",
+  "done": 120,
+  "total": 120,
+  "percent": 100.0,
+  "failed": 0,
+  "skipped": 3281,
+  "core_done": 120,
+  "core_total": 120,
+  "current": "PIPELINE_COMPLETED",
+  "updated_at": 1780247735.335481,
+  "unit": "核心文档",
+  "coverage": "认知地图生成",
+  "model": "gpt-5.5",
+  "reasoning": "medium",
+  "timeout_seconds": 1800,
+  "last_success": "ui-tui/src/domain",
+  "last_error": null,
+  "run_id": "538c6eb7-09f2-4cef-a4be-7a2a2941530e",
+  "stage": "C",
+  "active_workers": [],
+  "task_breakdown": {
+    "done": 120,
+    "skipped": 3281,
+    "pending": 0,
+    "running": 0,
+    "failed": 0
+  }
+}
