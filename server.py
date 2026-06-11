@@ -81,49 +81,77 @@ def slugify(source: str) -> str:
     return f"{s[:70]}-{h}".lower()
 
 
-def repo_card_context(source: str, repo_id: str, status: str) -> dict[str, str]:
+REPO_TITLE_ALIASES = {
+    "openclaw": "OpenClaw",
+}
+
+
+def normalize_repo_title(name: str) -> str:
+    text = (name or "").strip()
+    if not text:
+        return name
+    key = re.sub(r"[^a-z0-9]+", "", text.lower())
+    if key in REPO_TITLE_ALIASES:
+        return REPO_TITLE_ALIASES[key]
+    if re.search(r"[A-Z]", text) and not re.search(r"[\s._\-/]", text):
+        return text
+    parts = [p for p in re.split(r"[\s._\-/]+", text) if p]
+    if not parts:
+        return name
+    out = []
+    for part in parts:
+        if part.isupper() or re.search(r"[A-Z]", part):
+            out.append(part)
+        elif part.isdigit():
+            out.append(part)
+        else:
+            out.append(part[:1].upper() + part[1:])
+    return "".join(out)
+
+
+def repo_display_title(source: str, repo_id: str, generated_path: str | None = None) -> str:
+    parsed = urllib.parse.urlparse(source)
+    parts = [seg for seg in parsed.path.split("/") if seg]
+    repo = parts[1] if len(parts) > 1 else repo_id.rsplit("-", 1)[0]
+    repo = repo[:-4] if repo.endswith(".git") else repo
+    return normalize_repo_title(repo or parts[0] if parts else repo_id)
+
+
+
+def repo_card_context(source: str, repo_id: str, status: str, generated_path: str | None = None) -> dict[str, str]:
     status_label = {
         "completed": "已完成",
         "queued": "排队中",
         "running": "生成中",
         "failed": "生成失败",
     }.get(status, status or "unknown")
-    local = allowed_local(source)
-    if local:
-        return {
-            "kicker": "Local Repo",
-            "title": local.name or repo_id,
-            "subtitle": str(local),
-            "meta": "本地目录",
-            "status_label": status_label,
-            "status_class": f"status-{status or 'unknown'}",
-        }
     parsed = urllib.parse.urlparse(source)
     host = (parsed.netloc or "").lower()
     parts = [seg for seg in parsed.path.split("/") if seg]
     owner = parts[0] if len(parts) > 0 else ""
     repo = parts[1] if len(parts) > 1 else repo_id.rsplit("-", 1)[0]
     repo = repo[:-4] if repo.endswith(".git") else repo
-    kicker = "GitHub" if "github.com" in host else "GitLab" if "gitlab.com" in host else (parsed.netloc or "Remote Repo")
+    source_label = "GitHub" if "github.com" in host else "GitLab" if "gitlab.com" in host else (parsed.netloc or "Remote Repo")
     subtitle = f"{owner}/{repo}" if owner and repo else (parsed.netloc or source)
-    meta = source
+    meta = ""
     return {
-        "kicker": kicker,
-        "title": repo or owner or repo_id,
+        "kicker": source_label,
+        "title": repo_display_title(source, repo_id, generated_path),
         "subtitle": subtitle,
         "meta": meta,
         "status_label": status_label,
         "status_class": f"status-{status or 'unknown'}",
+        "source": source,
     }
 
 
 def repo_card_html(row: sqlite3.Row) -> str:
-    ctx = repo_card_context(str(row["source"]), str(row["repo_id"]), str(row["status"] or ""))
-    href = f"/repos/{row['repo_id']}/"
-    repo_id_text = html.escape(str(row["repo_id"]))
+    ctx = repo_card_context(str(row["source"]), str(row["repo_id"]), str(row["status"] or ""), str(row["generated_path"] or ""))
+    doc_href = f"/repos/{row['repo_id']}/"
+    gh_href = html.escape(ctx["source"])
     return (
         f"<li class='repo-card {ctx['status_class']}'>"
-        f"<a class='repo-card-link' href='{href}'>"
+        f"<a class='repo-card-link' href='{doc_href}' aria-label='打开文档 {html.escape(ctx['title'])}'>"
         f"<div class='repo-card-top'><span class='repo-kicker'>{html.escape(ctx['kicker'])}</span>"
         f"<span class='repo-status'>{html.escape(ctx['status_label'])}</span></div>"
         f"<div class='repo-card-body'>"
@@ -131,9 +159,9 @@ def repo_card_html(row: sqlite3.Row) -> str:
         f"<div class='repo-subtitle'>{html.escape(ctx['subtitle'])}</div>"
         f"<div class='repo-meta' title='{html.escape(ctx['meta'])}'>{html.escape(ctx['meta'])}</div>"
         f"</div>"
-        f"<div class='repo-footer'><span class='repo-open'>打开学习文档</span></div>"
-        f"<div class='repo-idline' title='{repo_id_text}'>{repo_id_text}</div>"
-        f"</a></li>"
+        f"</a>"
+        f"<div class='repo-footer'><a class='repo-open' href='{gh_href}' target='_blank' rel='noopener noreferrer' aria-label='打开 GitHub 仓库'></a></div>"
+        f"</li>"
     )
 
 
@@ -839,8 +867,8 @@ main{{min-width:0;padding:44px 52px 96px;background:radial-gradient(circle at to
 .card h1{{font-size:34px;line-height:1.34;margin:0 0 30px;padding-bottom:24px;border-bottom:1px solid var(--border);color:var(--text);font-weight:760;overflow-wrap:anywhere;word-break:break-word}}.layout.has-sidebar .card h1{{font-size:34px}}.card h2{{position:relative;font-size:24px;line-height:1.48;margin:54px 0 22px;padding:10px 0 12px 18px;border-bottom:1px solid var(--border);color:var(--text);font-weight:760;overflow-wrap:anywhere}}.card h2:before{{content:'';position:absolute;left:0;top:15px;width:5px;height:1.28em;border-radius:99px;background:var(--accent)}}.card h3{{position:relative;font-size:20px;line-height:1.58;margin:38px 0 16px;padding-left:15px;color:var(--text);font-weight:730;overflow-wrap:anywhere}}.card h3:before{{content:'';position:absolute;left:0;top:.78em;width:6px;height:6px;border-radius:50%;background:var(--accent)}}.card h4,.card h5,.card h6{{margin:28px 0 12px;line-height:1.5;color:var(--text);font-weight:700;overflow-wrap:anywhere}}.card p{{margin:0 0 22px;color:var(--text-2);font-size:16px;line-height:2.04}}.card>p:not(.lead-code){{text-indent:2em}}.card>p.lead-code{{text-indent:0;padding-left:2em}}.card p+p{{margin-top:2px}}.card ul,.card ol{{padding-left:1.75rem;margin:0 0 24px;color:var(--text-2)}}.card>ul,.card>ol{{margin:8px 0 30px;padding:16px 22px 16px 2.55rem;border-left:3px solid color-mix(in srgb,var(--accent) 54%,transparent);border-radius:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 8%,transparent),var(--section-bg) 42%)}}.card li{{margin:9px 0;padding-left:.22em;line-height:1.9}}.card li p{{margin:8px 0 0;text-indent:0;line-height:1.85}}.card li.depth-1{{margin-left:1.25rem}}.card li.depth-2{{margin-left:2.5rem}}.card li.depth-3{{margin-left:3.75rem}}.card li.depth-4,.card li.depth-5{{margin-left:5rem}}.card li::marker{{color:var(--accent);font-weight:800}}.card li input[type='checkbox']{{margin-right:8px;vertical-align:-1px}}.card strong{{font-weight:760;color:var(--text)}}.card a{{color:var(--link);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--link) 28%,transparent)}}.card a:hover{{color:var(--accent);border-bottom-color:var(--accent)}}.muted{{color:var(--muted)!important}}small{{color:var(--muted);font-size:13px}}
 .card h1.doc-title{{font-size:inherit;line-height:1.25;margin-bottom:36px}}.doc-title-kind{{display:inline-flex;align-items:center;margin:0 0 13px;padding:3px 9px;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:999px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);font-size:13px;font-weight:760;line-height:1.35}}.doc-title-path{{display:block;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:30px;font-weight:750;line-height:1.3;overflow-wrap:anywhere;word-break:break-word}}
 .card blockquote{{margin:28px 0;padding:17px 20px;border-left:4px solid var(--accent);background:var(--quote);border-radius:0 6px 6px 0;color:var(--text-2)}}.card blockquote p{{margin:0 0 10px;text-indent:0}}.card blockquote p:last-child{{margin-bottom:0}}hr{{height:1px;border:0;background:var(--border);margin:38px 0}}pre{{max-width:100%;overflow-x:auto;overflow-y:hidden;background:var(--code-bg);border:1px solid var(--border);padding:18px 20px;border-radius:18px;margin:24px 0 30px;color:var(--text)}}pre code{{display:block;min-width:max-content;background:none;border:0;padding:0;border-radius:0;white-space:pre;font:13px/1.72 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;color:var(--text-2)}}code{{background:var(--code-bg);border:1px solid var(--border);padding:.12em .38em;border-radius:999px;font:0.9em/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#a04d34;overflow-wrap:anywhere;word-break:break-word;-webkit-box-decoration-break:clone;box-decoration-break:clone}}:root[data-theme='dark'] code{{color:#f0b49d}}.table-wrap{{max-width:100%;overflow:auto;margin:24px 0 30px;border:1px solid var(--border);border-radius:18px}}table{{width:100%;border-collapse:collapse;background:var(--panel)}}th,td{{padding:11px 13px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-size:14px;line-height:1.6;text-align:left;vertical-align:top}}th:last-child,td:last-child{{border-right:0}}tr:last-child td{{border-bottom:0}}th{{background:var(--panel-2);color:var(--text);font-weight:700}}
-.source-form{{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:34px 0 10px;padding:12px;border:1px solid var(--border);border-radius:24px;background:linear-gradient(180deg,var(--panel) 0,var(--panel-2) 100%);box-shadow:0 0 0 1px rgba(209,207,197,.38);max-width:880px}}input{{flex:1 1 360px;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:15px 18px}}input::placeholder{{color:var(--muted)}}button{{flex:0 0 auto;border:0;border-radius:999px;background:var(--accent);color:#faf9f5;font:700 14px/1.4 inherit;padding:14px 20px;cursor:pointer;box-shadow:none}}button:hover{{filter:brightness(.98)}}button:focus,input:focus,.theme-toggle:focus{{outline:2px solid color-mix(in srgb,var(--accent) 42%,transparent);outline-offset:2px}}
-.home-page{{display:grid;gap:42px}}.home-page p{{text-indent:0!important}}.home-hero{{position:relative;padding:18px 0 8px}}.home-hero::after{{content:'';position:absolute;right:0;top:0;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(201,100,66,.12) 0,rgba(201,100,66,0) 68%);pointer-events:none}}.home-kicker{{margin:0 0 14px;color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}}.home-title{{margin:0;max-width:760px;font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:64px;line-height:1.08;letter-spacing:-.045em;color:var(--text);font-weight:500}}.home-subtitle{{max-width:720px;margin:18px 0 0;color:var(--text-2);font-size:18px;line-height:1.8}}.home-library{{display:grid;gap:20px}}.home-section-head{{display:grid;gap:8px;margin:0;padding:0}}.home-section-kicker{{margin:0;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}}.home-section-title{{margin:0;font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:38px;line-height:1.14;color:var(--text);font-weight:500}}.card ul.repo-list{{list-style:none;margin:0;padding:0;border:0;background:none}}.card>ul.repo-list{{margin:0;padding:0;border:0;background:none}}.repo-list{{display:grid;gap:20px;list-style:none;margin:0;padding:0!important}}.repo-grid{{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}}.repo-card{{margin:0;border:1px solid var(--border);border-radius:28px;background:linear-gradient(180deg,var(--panel) 0,var(--panel-2) 100%);box-shadow:0 4px 24px rgba(20,20,19,.05);overflow:hidden;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}}.repo-card:hover{{transform:translateY(-2px);border-color:var(--border-2);box-shadow:0 8px 28px rgba(20,20,19,.08)}}.repo-card-link{{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:16px;height:100%;padding:28px 28px 24px;color:inherit}}.repo-card-top{{display:flex;align-items:center;justify-content:space-between;gap:12px}}.repo-kicker{{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:rgba(201,100,66,.08);color:var(--accent);font-size:11px;font-weight:780;letter-spacing:.12em;text-transform:uppercase}}.repo-status{{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:var(--soft);border:1px solid var(--border);color:var(--text-2);font-size:12px;font-weight:700}}.repo-card-body{{display:grid;align-content:start;gap:14px;min-height:0}}.repo-title{{font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:34px;line-height:1.1;font-weight:500;color:var(--text);letter-spacing:-.035em;overflow-wrap:anywhere;word-break:break-word}}.repo-subtitle{{color:var(--text-2);font-size:15px;font-weight:700;line-height:1.62;overflow-wrap:anywhere;word-break:break-word}}.repo-meta{{color:var(--muted);font-size:13px;line-height:1.7;white-space:normal;overflow-wrap:anywhere;word-break:break-word}}.repo-footer{{display:flex;align-items:center;justify-content:flex-start;gap:12px;padding-top:12px;border-top:1px solid var(--border)}}.repo-open{{color:var(--accent);font-size:14px;font-weight:760}}.repo-open::after{{content:' →'}}.repo-idline{{color:var(--muted);font-size:11px;line-height:1.62;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:normal;overflow-wrap:anywhere;word-break:break-word}}.status-running .repo-status{{background:rgba(201,144,66,.12);color:#8f5a22;border-color:rgba(201,144,66,.18)}}.status-failed .repo-status{{background:rgba(181,51,51,.11);color:#b53333;border-color:rgba(181,51,51,.2)}}.status-completed .repo-status{{background:rgba(201,100,66,.09);color:var(--accent);border-color:rgba(201,100,66,.14)}}
+.source-form{{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:34px 0 10px;padding:12px;border:1px solid var(--border);border-radius:24px;background:linear-gradient(180deg,var(--panel) 0,var(--panel-2) 100%);width:calc(100% - 2px);max-width:none}}input{{flex:1 1 360px;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:15px 18px}}input::placeholder{{color:var(--muted)}}button{{flex:0 0 auto;border:0;border-radius:999px;background:var(--accent);color:#faf9f5;font:700 14px/1.4 inherit;padding:14px 20px;cursor:pointer;box-shadow:none}}button:hover{{filter:brightness(.98)}}button:focus,input:focus,.theme-toggle:focus{{outline:2px solid color-mix(in srgb,var(--accent) 42%,transparent);outline-offset:2px}}
+.home-page{{display:grid;gap:34px}}.home-page p{{text-indent:0!important}}.home-hero{{position:relative;padding:28px 0 18px;border-bottom:1px solid var(--border)}}.home-hero::before{{content:'';position:absolute;left:-18px;top:6px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(201,100,66,.16) 0,rgba(201,100,66,0) 72%);pointer-events:none}}.home-hero::after{{content:'';position:absolute;right:-8px;top:-2px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(201,100,66,.10) 0,rgba(201,100,66,0) 70%);pointer-events:none}}.home-kicker{{margin:0 0 14px;color:var(--accent);font-size:12px;font-weight:900;letter-spacing:.22em;text-transform:uppercase}}.home-title{{margin:0;max-width:860px;font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:60px;line-height:1.05;letter-spacing:-.05em;color:var(--text);font-weight:600}}.home-subtitle{{max-width:760px;margin:18px 0 0;color:var(--text-2);font-size:18px;line-height:1.85}}.home-library{{display:grid;gap:18px}}.home-section-head{{display:grid;gap:8px;margin:0;padding:0}}.home-section-kicker{{margin:0;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}}.home-section-title{{margin:0;font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:36px;line-height:1.12;color:var(--text);font-weight:600}}.card ul.repo-list{{list-style:none;margin:0;padding:0;border:0;background:none}}.card>ul.repo-list{{margin:0;padding:0;border:0;background:none}}.repo-list{{display:grid;gap:16px;list-style:none;margin:0;padding:0!important}}.repo-grid{{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}.repo-card{{position:relative;margin:0;border:1px solid var(--border);border-radius:22px;background:linear-gradient(180deg,color-mix(in srgb,var(--panel) 88%,white) 0,var(--panel-2) 100%);box-shadow:0 8px 24px rgba(20,20,19,.05);overflow:hidden;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}}.repo-card:hover{{transform:translateY(-2px);border-color:var(--border-2);box-shadow:0 14px 30px rgba(20,20,19,.09)}}.repo-card-link{{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;height:100%;padding:20px 20px 18px;color:inherit}}.repo-card-top{{display:flex;align-items:center;justify-content:space-between;gap:10px}}.repo-kicker{{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:rgba(201,100,66,.08);color:var(--accent);font-size:10px;font-weight:780;letter-spacing:.12em;text-transform:uppercase}}.repo-status{{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:var(--soft);border:1px solid var(--border);color:var(--text-2);font-size:11px;font-weight:700}}.repo-card-body{{display:grid;align-content:start;gap:10px;min-height:0}}.repo-title{{font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:31px;line-height:1.12;font-weight:500;color:var(--text);letter-spacing:-.03em;overflow-wrap:anywhere;word-break:break-word}}.repo-subtitle{{color:var(--text-2);font-size:14px;font-weight:700;line-height:1.55;overflow-wrap:anywhere;word-break:break-word}}.repo-meta{{color:var(--muted);font-size:12px;line-height:1.55;white-space:normal;overflow-wrap:anywhere;word-break:break-word}}.repo-footer{{position:absolute;right:0;bottom:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:0;z-index:2;overflow:hidden}}.repo-open{{position:relative;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;background:var(--accent);color:#fff;box-shadow:0 -1px 0 rgba(255,255,255,.18) inset,0 8px 14px rgba(201,100,66,.18);border-top-left-radius:11px;border-top-right-radius:0;border-bottom-right-radius:0;border-bottom-left-radius:0;opacity:1;overflow:hidden}}.repo-open::before{{content:'';position:absolute;left:49%;top:51%;width:8px;height:8px;border-top:2px solid currentColor;border-right:2px solid currentColor;transform:translate(-60%,-60%) rotate(45deg)}}.repo-open::after{{content:'';position:absolute;right:7px;top:7px;width:9px;height:2px;background:currentColor;transform:rotate(45deg);transform-origin:right center}}.repo-open:hover{{background:color-mix(in srgb,var(--accent) 90%,black);opacity:1}}
 .rightbar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;border-left:1px solid var(--border);padding:22px 16px;background:var(--panel)}}.right-card{{border:1px solid var(--border);border-radius:4px;background:var(--soft);padding:14px;margin-bottom:14px;color:var(--text-2)}}.right-card p{{font-size:13px;line-height:1.65;margin:.55em 0 0;color:var(--muted)}}.page-toc{{display:grid;gap:4px}}.toc-link{{display:block;padding:6px 8px;border-radius:4px;color:var(--text-2);font-size:12px;line-height:1.45;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:2px solid transparent}}.toc-link:hover{{background:var(--panel);color:var(--text);border-left-color:var(--accent)}}.toc-lv-h1{{padding-left:8px}}.toc-lv-h2{{padding-left:18px}}.toc-lv-h3{{padding-left:28px}}.progress-card strong{{display:block;margin:8px 0;font-size:22px}}.progress{{height:8px;background:var(--panel-2);border-radius:99px;overflow:hidden;margin:8px 0}}.progress span{{display:block;width:78%;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:inherit}}
 .mobile-nav{{display:none;position:sticky;top:var(--header-h);z-index:45;padding:10px 12px;background:var(--bg);border-bottom:1px solid var(--border)}}.mobile-nav summary{{display:flex;align-items:center;justify-content:space-between;list-style:none;cursor:pointer;padding:10px 12px;border-radius:5px;border:1px solid var(--border);background:var(--panel);font-weight:700}}.mobile-nav summary::-webkit-details-marker{{display:none}}.mobile-nav[open] .chevron{{transform:rotate(180deg)}}.chevron{{transition:transform .16s ease;color:var(--muted)}}.mobile-nav-body{{margin-top:10px;max-height:68vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:14px}}
 @media(max-width:1180px){{.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr)}}.rightbar{{display:none}}.topbar{{grid-template-columns:auto minmax(120px,1fr) auto}}}}
@@ -1129,7 +1157,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=="/":
             with db() as con: repos=con.execute("SELECT * FROM repos ORDER BY updated_at DESC LIMIT 50").fetchall()
             repo_html="".join(repo_card_html(r) for r in repos) or "<li class='repo-card'><span class='muted'>还没有生成过项目文档。</span></li>"
-            self.send_html("Repo Docs", f"<div class='home-page'><section class='home-hero'><p class='home-kicker'>AIWIKI</p><h1 class='home-title'>把代码仓库整理成一页页能读懂的文档。</h1><p class='home-subtitle'>导入 GitHub 或 GitLab 仓库，把目录、关键文件与阅读顺序整理成结构化中文讲解。</p><form class='source-form' method='post' action='/submit'><input name='source' aria-label='仓库地址' placeholder='https://github.com/org/repo 或 https://gitlab.com/group/repo'><button type='submit'>开始整理文档</button></form></section><section class='home-library'><div class='home-section-head'><p class='home-section-kicker'>Project Library</p><div class='home-section-title'>已有项目</div></div><ul class='repo-list repo-grid'>{repo_html}</ul></section></div>") ; return
+            self.send_html("AIWIKI 项目库", f"<div class='home-page'><section class='home-hero'><p class='home-kicker'>AIWIKI 项目库</p><h1 class='home-title'>AIWIKI，把代码仓库整理成一页页能读懂的文档。</h1><p class='home-subtitle'>把 GitHub 或 GitLab 仓库导入后，系统会先给出项目名、目录和阅读顺序，再展开为结构化中文讲解。</p><form class='source-form' method='post' action='/submit'><input name='source' aria-label='仓库地址' placeholder='https://github.com/org/repo 或 https://gitlab.com/group/repo'><button type='submit'>开始整理文档</button></form></section><section class='home-library'><div class='home-section-head'><p class='home-section-kicker'>Project Library</p><div class='home-section-title'>项目库</div></div><ul class='repo-list repo-grid'>{repo_html}</ul></section></div>") ; return
         if path.startswith("/jobs/"):
             jid=path.split("/",2)[2]
             with db() as con: j=con.execute("SELECT * FROM jobs WHERE job_id=?",(jid,)).fetchone()
@@ -1170,8 +1198,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path!="/submit": self.send_html("404","<h1>Not found</h1>",404); return
         length=int(self.headers.get("content-length","0")); data=self.rfile.read(length).decode(); source=urllib.parse.parse_qs(data).get("source",[""])[0].strip()
-        if not (is_remote(source) or allowed_local(source)):
-            self.send_html("输入无效","<h1>输入无效</h1><p>只接受 GitHub/GitLab HTTPS URL，或 /data/project 下存在的本地目录。</p>",400); return
+        if not is_remote(source):
+            self.send_html("输入无效","<h1>输入无效</h1><p>只接受 GitHub/GitLab HTTPS 仓库 URL。</p>",400); return
         rid=slugify(source); jid=job_id_for(source); t=now()
         with db() as con:
             con.execute("INSERT OR REPLACE INTO repos(repo_id,source,local_path,generated_path,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",(rid,source,"",str(BASE/"generated"/rid),"queued",t,t))
