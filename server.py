@@ -146,7 +146,10 @@ def repo_card_context(source: str, repo_id: str, status: str, generated_path: st
 
 
 def repo_card_html(row: sqlite3.Row) -> str:
-    ctx = repo_card_context(str(row["source"]), str(row["repo_id"]), str(row["status"] or ""), str(row["generated_path"] or ""))
+    status = str(row["status"] or "")
+    if status == "rejected":
+        return ""
+    ctx = repo_card_context(str(row["source"]), str(row["repo_id"]), status, str(row["generated_path"] or ""))
     doc_href = f"/repos/{row['repo_id']}/"
     gh_href = html.escape(ctx["source"])
     return (
@@ -167,6 +170,37 @@ def repo_card_html(row: sqlite3.Row) -> str:
 
 def job_id_for(source: str) -> str:
     return hashlib.sha1(f"{source}-{time.time()}".encode()).hexdigest()[:16]
+
+
+def cleanup_repo_source(repo_id: str):
+    src = REPOS_DIR / repo_id / "source"
+    try:
+        if src.exists():
+            shutil.rmtree(src)
+    except Exception:
+        pass
+
+
+def purge_repo_material(repo_id: str) -> None:
+    for path in (BASE / "repos" / repo_id, BASE / "generated" / repo_id):
+        try:
+            if path.exists():
+                shutil.rmtree(path)
+        except Exception:
+            pass
+
+
+def purge_rejected_repo(repo_id: str, *, keep_jobs: bool = True) -> None:
+    purge_repo_material(repo_id)
+    with db() as con:
+        con.execute("DELETE FROM repos WHERE repo_id=?", (repo_id,))
+        if not keep_jobs:
+            con.execute("DELETE FROM jobs WHERE repo_id=?", (repo_id,))
+
+
+def repo_exists(repo_id: str) -> bool:
+    with db() as con:
+        return con.execute("SELECT 1 FROM repos WHERE repo_id=?", (repo_id,)).fetchone() is not None
 
 
 def update_job(job_id: str, status: str | None = None, message: str | None = None, append: str | None = None) -> None:
@@ -540,7 +574,7 @@ def worker() -> None:
             reason = filter_reason(s)
             if reason:
                 update_job(job_id, "rejected", reason, reason)
-                with db() as con: con.execute("UPDATE repos SET status=?, updated_at=? WHERE repo_id=?", ("rejected", now(), repo_id))
+                purge_rejected_repo(repo_id)
                 continue
             gen = BASE / "generated" / repo_id
             update_job(job_id, "generating", "正在生成分段 Markdown 文档", f"扫描完成 total={s.total} code={s.code} docs={s.docs} manifests={s.manifests}")
@@ -554,6 +588,7 @@ def worker() -> None:
             terminal, terminal_text = pipeline_terminal(gen)
             if terminal == "completed":
                 update_job(job_id, "completed", f"生成完成，共 {len(order)} 个基础入口，Codex 管线已完成", "完成")
+                cleanup_repo_source(repo_id)
                 repo_status = "completed"
             elif terminal == "partial":
                 update_job(job_id, "completed", "生成完成，部分任务失败，可重跑；成功文档仍可浏览", terminal_text or "部分任务失败")
@@ -860,7 +895,7 @@ def page(title: str, body: str, sidebar: str = "", repo_id: str | None = None) -
 :root[data-theme='dark']{{--bg:#141413;--top:rgba(20,20,19,.94);--panel:#1b1a18;--panel-2:#242320;--card:#1b1a18;--section-bg:#201f1c;--text:#f5f4ed;--text-2:#d2cec4;--muted:#a9a39a;--border:#30302e;--border-2:#4d4c48;--accent:#d97757;--accent-2:#e08b6b;--link:#f0b49d;--code-bg:#181715;--quote:#211d1a;--soft:#171614;color-scheme:dark}}
 *{{box-sizing:border-box}}html{{font-size:16px;scroll-padding-top:calc(var(--header-h) + 18px)}}body{{margin:0;background:var(--bg);color:var(--text);font-family:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;line-height:1.85;overflow-x:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}}a{{color:inherit;text-decoration:none;overflow-wrap:anywhere}}a:hover{{color:var(--accent)}}img,table{{max-width:100%}}p,li,.muted,.repo-id,.repo-link,summary,small{{overflow-wrap:anywhere;word-break:break-word}}::selection{{background:rgba(201,100,66,.18)}}
 .adbar{{height:34px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#ece7dd;color:#5e5d59;border-bottom:1px solid var(--border);font-size:13px}}:root[data-theme='dark'] .adbar{{background:#181715;color:#d2cec4}}.adbar b{{color:var(--accent);font-weight:650}}
-.topbar{{position:sticky;top:0;z-index:60;height:var(--header-h);display:grid;grid-template-columns:auto minmax(120px,520px) auto;align-items:center;gap:18px;padding:0 24px;background:var(--top);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}}.brand{{display:flex;align-items:center;gap:12px;min-width:0}}.brand-mark{{position:relative;width:28px;height:22px;display:inline-block}}.brand-mark:before,.brand-mark:after{{content:'';position:absolute;width:18px;height:6px;border-radius:99px;background:var(--accent);transform:skewX(-18deg)}}.brand-mark:before{{left:0;top:3px}}.brand-mark:after{{right:0;bottom:3px}}.brand strong{{font-size:18px;font-weight:720;letter-spacing:-.01em}}.brand span{{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}}.brand span span{{padding-left:10px;border-left:1px solid var(--border)}}.search{{height:38px;border:1px solid var(--border);background:var(--panel-2);border-radius:999px;display:flex;align-items:center;gap:10px;color:var(--muted);padding:0 12px 0 14px;font-size:14px;box-shadow:0 0 0 1px rgba(209,207,197,.45)}}.search input{{flex:1;border:0;background:transparent;color:var(--text);font:inherit;min-width:80px;outline:0;padding:0}}.search input::placeholder{{color:var(--muted)}}.search kbd{{margin-left:auto;border:1px solid var(--border-2);border-radius:999px;padding:1px 7px;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel)}}.top-actions{{display:flex;gap:9px;align-items:center;justify-content:flex-end}}.top-pill,.theme-toggle{{height:38px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:999px;padding:0 14px;font-size:13px;font-weight:570;background:var(--panel);color:var(--text-2);cursor:pointer;box-shadow:0 0 0 1px rgba(209,207,197,.35)}}.top-pill.primary{{background:var(--accent);color:#faf9f5;border-color:transparent;box-shadow:none}}.theme-toggle{{width:38px;padding:0;font-size:17px}}.theme-toggle .moon{{display:none}}:root[data-theme='dark'] .theme-toggle .moon{{display:inline}}:root[data-theme='dark'] .theme-toggle .sun{{display:none}}
+.topbar{{position:sticky;top:0;z-index:60;height:var(--header-h);display:grid;grid-template-columns:auto minmax(120px,520px) auto;align-items:center;gap:18px;padding:0 24px;background:var(--top);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}}.brand{{display:flex;align-items:center;gap:12px;min-width:0}}.brand-mark{{position:relative;width:28px;height:22px;display:inline-block}}.brand-mark:before,.brand-mark:after{{content:'';position:absolute;width:18px;height:6px;border-radius:99px;background:var(--accent);transform:skewX(-18deg)}}.brand-mark:before{{left:0;top:3px}}.brand-mark:after{{right:0;bottom:3px}}.brand strong{{font-size:18px;font-weight:720;letter-spacing:-.01em}}.brand span{{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}}.brand span span{{padding-left:10px;border-left:1px solid var(--border)}}.search{{position:relative;height:38px;border:1px solid var(--border);background:var(--panel-2);border-radius:999px;display:flex;align-items:center;gap:10px;color:var(--muted);padding:0 12px 0 14px;font-size:14px;box-shadow:0 0 0 1px rgba(209,207,197,.45)}}.search input{{flex:1;border:0;background:transparent;color:var(--text);font:inherit;min-width:80px;outline:0;padding:0}}.nav-search-suggest{{position:absolute;left:0;right:0;top:calc(100% + 10px);z-index:100;display:none;padding:8px;border:1px solid var(--border);border-radius:18px;background:var(--panel);box-shadow:0 18px 44px rgba(20,20,19,.14);max-height:min(420px,70vh);overflow:auto}}.nav-search-suggest.is-open{{display:grid;gap:4px}}.search-suggest-item{{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;padding:10px 11px;border-radius:13px;color:var(--text);text-decoration:none}}.search-suggest-item:hover,.search-suggest-item.is-active{{background:var(--panel-2);color:var(--text)}}.search-suggest-badge{{display:inline-flex;align-items:center;justify-content:center;min-width:48px;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,var(--accent) 11%,transparent);color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.03em}}.search-suggest-badge.readme{{background:color-mix(in srgb,var(--text-2) 10%,transparent);color:var(--text-2)}}.search-suggest-text{{min-width:0;display:grid;gap:1px}}.search-suggest-text strong{{font-size:14px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.search-suggest-text small{{font-size:12px;line-height:1.35;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.search-suggest-empty{{padding:12px 13px;color:var(--muted);font-size:13px;line-height:1.5}}.search input::placeholder{{color:var(--muted)}}.search kbd{{margin-left:auto;border:1px solid var(--border-2);border-radius:999px;padding:1px 7px;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel)}}.top-actions{{display:flex;gap:9px;align-items:center;justify-content:flex-end}}.top-pill,.theme-toggle{{height:38px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:999px;padding:0 14px;font-size:13px;font-weight:570;background:var(--panel);color:var(--text-2);cursor:pointer;box-shadow:0 0 0 1px rgba(209,207,197,.35)}}.top-pill.primary{{background:var(--accent);color:#faf9f5;border-color:transparent;box-shadow:none}}.theme-toggle{{width:38px;padding:0;font-size:17px}}.theme-toggle .moon{{display:none}}:root[data-theme='dark'] .theme-toggle .moon{{display:inline}}:root[data-theme='dark'] .theme-toggle .sun{{display:none}}
 .layout{{display:grid;min-height:calc(100vh - var(--header-h) - 34px)}}.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr) var(--right-w)}}.layout.no-sidebar{{grid-template-columns:minmax(0,1fr)}}.sidebar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;background:var(--panel);border-right:1px solid var(--border);padding:22px 16px 34px;resize:horizontal;min-width:240px;max-width:620px;width:var(--sidebar-w);scrollbar-gutter:stable}}.sidebar-panel{{display:grid;gap:12px}}.side-kicker,.right-label{{font:700 11px/1.35 'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}}.sidebar-title{{margin:0 0 8px;font-size:17px;line-height:1.25}}.repo-id{{display:inline-flex;width:fit-content;max-width:100%;padding:5px 9px;border:1px solid color-mix(in srgb,var(--accent) 42%,transparent);border-radius:5px;background:color-mix(in srgb,var(--accent) 9%,transparent);color:var(--accent);font-size:12px;font-weight:650}}
 .repo-nav{{display:block}}.nav-section{{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}}.nav-section:last-child{{border-bottom:0;margin-bottom:0;padding-bottom:0}}.nav-section-title{{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}}.overview-link{{display:block;padding:7px 9px;border-radius:5px;color:var(--text-2);font-size:13px;line-height:1.5}}.overview-link:hover{{background:var(--panel-2);color:var(--text);text-decoration:none}}.repo-tree{{display:grid;gap:3px}}.tree-node,.tree-leaf{{display:block;min-width:0}}.tree-node>summary,.tree-leaf{{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:5px;color:var(--text-2);font-size:13px;line-height:1.48}}.tree-node>summary{{cursor:pointer;list-style:none;user-select:none}}.tree-node>summary::-webkit-details-marker{{display:none}}.tree-summary:focus,.tree-summary:focus-visible,.tree-toggle:focus,.tree-toggle:focus-visible,.tree-toggle:active,.tree-dir-link:focus,.tree-dir-link:focus-visible{{outline:none!important;box-shadow:none!important;background:transparent!important}}.tree-toggle,.tree-toggle-spacer{{flex:0 0 auto;width:18px;height:18px;padding:0;border:0;appearance:none;-webkit-appearance:none;border-radius:0;background:transparent!important;color:var(--muted);cursor:pointer;font:700 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:inline-flex;align-items:center;justify-content:center;outline:none!important;box-shadow:none!important;-webkit-tap-highlight-color:transparent}}.tree-toggle-spacer{{cursor:default;visibility:hidden}}.tree-node[open] .tree-toggle{{transform:rotate(90deg)}}.tree-dir-link{{flex:1 1 auto;min-width:0;color:inherit}}.tree-node>summary:hover,.tree-leaf:hover,.overview-link:hover{{background:var(--panel-2);color:var(--text);text-decoration:none}}.is-active{{background:color-mix(in srgb,var(--accent) 10%,transparent)!important;color:var(--accent)!important;border-color:transparent!important;box-shadow:none!important;font-weight:700}}.tree-children{{display:grid;gap:2px;margin-left:13px;padding-left:10px;border-left:1px solid var(--border)}}.tree-label{{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.tree-missing{{opacity:.7}}
 main{{min-width:0;padding:44px 52px 96px;background:radial-gradient(circle at top,#fbfaf6 0,#f3efe6 36%,var(--bg) 100%)}}.content-wrap{{width:min(100%,860px);margin:0 auto}}.card{{min-width:0;background:var(--card);border:1px solid var(--border);border-radius:32px;padding:62px 72px 78px;box-shadow:0 4px 24px rgba(20,20,19,.05)}}:root[data-theme='dark'] main{{background:var(--bg)}}:root[data-theme='dark'] .card{{box-shadow:none}}.layout.no-sidebar main{{padding-top:68px}}.layout.no-sidebar .content-wrap{{width:min(100%,1120px)}}.layout.no-sidebar .card{{padding:78px 84px 92px}}
@@ -868,7 +903,7 @@ main{{min-width:0;padding:44px 52px 96px;background:radial-gradient(circle at to
 .card h1.doc-title{{font-size:inherit;line-height:1.25;margin-bottom:36px}}.doc-title-kind{{display:inline-flex;align-items:center;margin:0 0 13px;padding:3px 9px;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:999px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);font-size:13px;font-weight:760;line-height:1.35}}.doc-title-path{{display:block;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:30px;font-weight:750;line-height:1.3;overflow-wrap:anywhere;word-break:break-word}}
 .card blockquote{{margin:28px 0;padding:17px 20px;border-left:4px solid var(--accent);background:var(--quote);border-radius:0 6px 6px 0;color:var(--text-2)}}.card blockquote p{{margin:0 0 10px;text-indent:0}}.card blockquote p:last-child{{margin-bottom:0}}hr{{height:1px;border:0;background:var(--border);margin:38px 0}}pre{{max-width:100%;overflow-x:auto;overflow-y:hidden;background:var(--code-bg);border:1px solid var(--border);padding:18px 20px;border-radius:18px;margin:24px 0 30px;color:var(--text)}}pre code{{display:block;min-width:max-content;background:none;border:0;padding:0;border-radius:0;white-space:pre;font:13px/1.72 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;color:var(--text-2)}}code{{background:var(--code-bg);border:1px solid var(--border);padding:.12em .38em;border-radius:999px;font:0.9em/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#a04d34;overflow-wrap:anywhere;word-break:break-word;-webkit-box-decoration-break:clone;box-decoration-break:clone}}:root[data-theme='dark'] code{{color:#f0b49d}}.table-wrap{{max-width:100%;overflow:auto;margin:24px 0 30px;border:1px solid var(--border);border-radius:18px}}table{{width:100%;border-collapse:collapse;background:var(--panel)}}th,td{{padding:11px 13px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-size:14px;line-height:1.6;text-align:left;vertical-align:top}}th:last-child,td:last-child{{border-right:0}}tr:last-child td{{border-bottom:0}}th{{background:var(--panel-2);color:var(--text);font-weight:700}}
 .source-form{{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:34px 0 10px;padding:12px;border:1px solid var(--border);border-radius:24px;background:linear-gradient(180deg,var(--panel) 0,var(--panel-2) 100%);width:calc(100% - 2px);max-width:none}}input{{flex:1 1 360px;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:15px 18px}}input::placeholder{{color:var(--muted)}}button{{flex:0 0 auto;border:0;border-radius:999px;background:var(--accent);color:#faf9f5;font:700 14px/1.4 inherit;padding:14px 20px;cursor:pointer;box-shadow:none}}button:hover{{filter:brightness(.98)}}button:focus,input:focus,.theme-toggle:focus{{outline:2px solid color-mix(in srgb,var(--accent) 42%,transparent);outline-offset:2px}}
-.home-page{{display:grid;gap:34px}}.home-page p{{text-indent:0!important}}.home-hero{{position:relative;padding:28px 0 18px;border-bottom:1px solid var(--border)}}.home-hero::before{{content:'';position:absolute;left:-18px;top:6px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(201,100,66,.16) 0,rgba(201,100,66,0) 72%);pointer-events:none}}.home-hero::after{{content:'';position:absolute;right:-8px;top:-2px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(201,100,66,.10) 0,rgba(201,100,66,0) 70%);pointer-events:none}}.home-kicker{{margin:0 0 14px;color:var(--accent);font-size:12px;font-weight:900;letter-spacing:.22em;text-transform:uppercase}}.home-title{{margin:0;max-width:860px;font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:60px;line-height:1.05;letter-spacing:-.05em;color:var(--text);font-weight:600}}.home-subtitle{{max-width:760px;margin:18px 0 0;color:var(--text-2);font-size:18px;line-height:1.85}}.home-library{{display:grid;gap:18px}}.home-section-head{{display:grid;gap:8px;margin:0;padding:0}}.home-section-kicker{{margin:0;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}}.home-section-title{{margin:0;font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:36px;line-height:1.12;color:var(--text);font-weight:600}}.card ul.repo-list{{list-style:none;margin:0;padding:0;border:0;background:none}}.card>ul.repo-list{{margin:0;padding:0;border:0;background:none}}.repo-list{{display:grid;gap:16px;list-style:none;margin:0;padding:0!important}}.repo-grid{{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}.repo-card{{position:relative;margin:0;border:1px solid var(--border);border-radius:22px;background:linear-gradient(180deg,color-mix(in srgb,var(--panel) 88%,white) 0,var(--panel-2) 100%);box-shadow:0 8px 24px rgba(20,20,19,.05);overflow:hidden;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}}.repo-card:hover{{transform:translateY(-2px);border-color:var(--border-2);box-shadow:0 14px 30px rgba(20,20,19,.09)}}.repo-card-link{{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;height:100%;padding:20px 20px 18px;color:inherit}}.repo-card-top{{display:flex;align-items:center;justify-content:space-between;gap:10px}}.repo-kicker{{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:rgba(201,100,66,.08);color:var(--accent);font-size:10px;font-weight:780;letter-spacing:.12em;text-transform:uppercase}}.repo-status{{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:var(--soft);border:1px solid var(--border);color:var(--text-2);font-size:11px;font-weight:700}}.repo-card-body{{display:grid;align-content:start;gap:10px;min-height:0}}.repo-title{{font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:31px;line-height:1.12;font-weight:500;color:var(--text);letter-spacing:-.03em;overflow-wrap:anywhere;word-break:break-word}}.repo-subtitle{{color:var(--text-2);font-size:14px;font-weight:700;line-height:1.55;overflow-wrap:anywhere;word-break:break-word}}.repo-meta{{color:var(--muted);font-size:12px;line-height:1.55;white-space:normal;overflow-wrap:anywhere;word-break:break-word}}.repo-footer{{position:absolute;right:0;bottom:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:0;z-index:2;overflow:hidden}}.repo-open{{position:relative;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;background:var(--accent);color:#fff;box-shadow:0 -1px 0 rgba(255,255,255,.18) inset,0 8px 14px rgba(201,100,66,.18);border-top-left-radius:11px;border-top-right-radius:0;border-bottom-right-radius:0;border-bottom-left-radius:0;opacity:1;overflow:hidden}}.repo-open::before{{content:'';position:absolute;left:49%;top:51%;width:8px;height:8px;border-top:2px solid currentColor;border-right:2px solid currentColor;transform:translate(-60%,-60%) rotate(45deg)}}.repo-open::after{{content:'';position:absolute;right:7px;top:7px;width:9px;height:2px;background:currentColor;transform:rotate(45deg);transform-origin:right center}}.repo-open:hover{{background:color-mix(in srgb,var(--accent) 90%,black);opacity:1}}
+.home-page{{display:grid;gap:34px}}.home-page p{{text-indent:0!important}}.home-hero{{position:relative;padding:28px 0 18px;border-bottom:1px solid var(--border)}}.home-hero::before{{content:'';position:absolute;left:-18px;top:6px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(201,100,66,.16) 0,rgba(201,100,66,0) 72%);pointer-events:none}}.home-hero::after{{content:'';position:absolute;right:-8px;top:-2px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(201,100,66,.10) 0,rgba(201,100,66,0) 70%);pointer-events:none}}.home-kicker{{margin:0 0 14px;color:var(--accent);font-size:12px;font-weight:900;letter-spacing:.22em;text-transform:uppercase}}.home-title{{margin:0;max-width:860px;font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:60px;line-height:1.05;letter-spacing:-.05em;color:var(--text);font-weight:600}}.home-subtitle{{max-width:760px;margin:18px 0 0;color:var(--text-2);font-size:18px;line-height:1.85}}.search-page{{display:grid;gap:26px}}.search-hero{{padding-bottom:18px}}.search-summary{{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:var(--text-2);font-size:14px;line-height:1.6}}.search-summary strong{{color:var(--text)}}.search-section{{display:grid;gap:14px}}.search-doc-list{{display:grid;gap:12px;list-style:none;margin:0;padding:0}}.search-doc-item{{border:1px solid var(--border);border-radius:18px;background:var(--panel);overflow:hidden}}.search-doc-link{{display:grid;gap:8px;padding:16px 18px;color:inherit}}.search-doc-top{{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}}.search-doc-top strong{{color:var(--text);font-size:16px;line-height:1.45}}.search-doc-top span{{color:var(--muted);font-size:12px;line-height:1.45}}.search-doc-link p{{margin:0;color:var(--text-2);font-size:14px;line-height:1.7}}.home-library{{display:grid;gap:18px}}.home-section-head{{display:grid;gap:8px;margin:0;padding:0}}.home-section-kicker{{margin:0;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}}.home-section-title{{margin:0;font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:36px;line-height:1.12;color:var(--text);font-weight:600}}.card ul.repo-list{{list-style:none;margin:0;padding:0;border:0;background:none}}.card>ul.repo-list{{margin:0;padding:0;border:0;background:none}}.repo-list{{display:grid;gap:16px;list-style:none;margin:0;padding:0!important}}.repo-grid{{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}.repo-card{{position:relative;margin:0;border:1px solid var(--border);border-radius:22px;background:linear-gradient(180deg,color-mix(in srgb,var(--panel) 88%,white) 0,var(--panel-2) 100%);box-shadow:0 8px 24px rgba(20,20,19,.05);overflow:hidden;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}}.repo-card:hover{{transform:translateY(-2px);border-color:var(--border-2);box-shadow:0 14px 30px rgba(20,20,19,.09)}}.repo-card-link{{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;height:100%;padding:20px 20px 18px;color:inherit}}.repo-card-top{{display:flex;align-items:center;justify-content:space-between;gap:10px}}.repo-kicker{{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:rgba(201,100,66,.08);color:var(--accent);font-size:10px;font-weight:780;letter-spacing:.12em;text-transform:uppercase}}.repo-status{{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:var(--soft);border:1px solid var(--border);color:var(--text-2);font-size:11px;font-weight:700}}.repo-card-body{{display:grid;align-content:start;gap:10px;min-height:0}}.repo-title{{font-family:Georgia,'Times New Roman','Noto Serif SC',serif;font-size:31px;line-height:1.12;font-weight:500;color:var(--text);letter-spacing:-.03em;overflow-wrap:anywhere;word-break:break-word}}.repo-subtitle{{color:var(--text-2);font-size:14px;font-weight:700;line-height:1.55;overflow-wrap:anywhere;word-break:break-word}}.repo-meta{{color:var(--muted);font-size:12px;line-height:1.55;white-space:normal;overflow-wrap:anywhere;word-break:break-word}}.repo-footer{{position:absolute;right:0;bottom:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:0;z-index:2;overflow:hidden}}.repo-open{{position:relative;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;background:var(--accent);color:#fff;box-shadow:0 -1px 0 rgba(255,255,255,.18) inset,0 8px 14px rgba(201,100,66,.18);border-top-left-radius:11px;border-top-right-radius:0;border-bottom-right-radius:0;border-bottom-left-radius:0;opacity:1;overflow:hidden}}.repo-open::before{{content:'↗';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:14px;font-weight:900;line-height:1}}.repo-open::after{{content:none}}.repo-open:hover{{background:color-mix(in srgb,var(--accent) 90%,black);opacity:1}}
 .rightbar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;border-left:1px solid var(--border);padding:22px 16px;background:var(--panel)}}.right-card{{border:1px solid var(--border);border-radius:4px;background:var(--soft);padding:14px;margin-bottom:14px;color:var(--text-2)}}.right-card p{{font-size:13px;line-height:1.65;margin:.55em 0 0;color:var(--muted)}}.page-toc{{display:grid;gap:4px}}.toc-link{{display:block;padding:6px 8px;border-radius:4px;color:var(--text-2);font-size:12px;line-height:1.45;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:2px solid transparent}}.toc-link:hover{{background:var(--panel);color:var(--text);border-left-color:var(--accent)}}.toc-lv-h1{{padding-left:8px}}.toc-lv-h2{{padding-left:18px}}.toc-lv-h3{{padding-left:28px}}.progress-card strong{{display:block;margin:8px 0;font-size:22px}}.progress{{height:8px;background:var(--panel-2);border-radius:99px;overflow:hidden;margin:8px 0}}.progress span{{display:block;width:78%;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:inherit}}
 .mobile-nav{{display:none;position:sticky;top:var(--header-h);z-index:45;padding:10px 12px;background:var(--bg);border-bottom:1px solid var(--border)}}.mobile-nav summary{{display:flex;align-items:center;justify-content:space-between;list-style:none;cursor:pointer;padding:10px 12px;border-radius:5px;border:1px solid var(--border);background:var(--panel);font-weight:700}}.mobile-nav summary::-webkit-details-marker{{display:none}}.mobile-nav[open] .chevron{{transform:rotate(180deg)}}.chevron{{transition:transform .16s ease;color:var(--muted)}}.mobile-nav-body{{margin-top:10px;max-height:68vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:14px}}
 @media(max-width:1180px){{.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr)}}.rightbar{{display:none}}.topbar{{grid-template-columns:auto minmax(120px,1fr) auto}}}}
@@ -892,20 +927,96 @@ function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='
   function makeSearch(){{
     var input=document.getElementById('nav-search');
     if(!input) return;
-    var items=[].slice.call(document.querySelectorAll('.overview-link,.tree-dir-link,.tree-leaf'));
-    var sections=[].slice.call(document.querySelectorAll('.nav-section'));
+    var form=input.closest('form');
+    if(!form) return;
+    form.classList.add('search-with-suggest');
+    var box=document.createElement('div');
+    box.className='nav-search-suggest';
+    box.setAttribute('role','listbox');
+    box.setAttribute('aria-label','搜索联想');
+    form.appendChild(box);
+    var timer=null;
+    var active=-1;
+    var latest='';
+    var controller=null;
+    function hide(){{ box.classList.remove('is-open'); box.innerHTML=''; active=-1; input.removeAttribute('aria-activedescendant'); }}
+    function openBox(){{ box.classList.add('is-open'); }}
+    function currentItems(){{ return [].slice.call(box.querySelectorAll('.search-suggest-item')); }}
+    function setActive(next){{
+      var els=currentItems();
+      if(!els.length){{ active=-1; return; }}
+      active=(next+els.length)%els.length;
+      els.forEach(function(el,i){{ el.classList.toggle('is-active', i===active); }});
+      input.setAttribute('aria-activedescendant', els[active].id || '');
+    }}
+    function addEmpty(q){{
+      var empty=document.createElement('div');
+      empty.className='search-suggest-empty';
+      empty.textContent=q ? '没有匹配的仓库名、组织名或 README' : '输入仓库名、组织名或 README 关键词';
+      box.appendChild(empty);
+      openBox();
+    }}
+    function render(items,q){{
+      box.innerHTML='';
+      active=-1;
+      if(!q){{ hide(); return; }}
+      if(!items || !items.length){{ addEmpty(q); return; }}
+      items.forEach(function(item,i){{
+        var a=document.createElement('a');
+        a.className='search-suggest-item';
+        a.id='nav-search-suggest-'+i;
+        a.setAttribute('role','option');
+        a.href=item.href || ('/search?q='+encodeURIComponent(q));
+        var badge=document.createElement('span');
+        badge.className='search-suggest-badge '+(item.type==='readme'?'readme':'repo');
+        badge.textContent=item.type==='readme'?'README':'仓库';
+        var text=document.createElement('span');
+        text.className='search-suggest-text';
+        var title=document.createElement('strong');
+        title.textContent=item.label || '';
+        var meta=document.createElement('small');
+        meta.textContent=item.meta || '';
+        text.appendChild(title);
+        text.appendChild(meta);
+        a.appendChild(badge);
+        a.appendChild(text);
+        a.addEventListener('mouseenter', function(){{ setActive(i); }});
+        box.appendChild(a);
+      }});
+      openBox();
+    }}
+    function request(q){{
+      latest=q;
+      if(controller) controller.abort();
+      controller = window.AbortController ? new AbortController() : null;
+      fetch('/search/suggest?q='+encodeURIComponent(q), {{headers:{{'Accept':'application/json'}}, signal:controller?controller.signal:undefined}})
+        .then(function(r){{ return r.ok ? r.json() : {{items:[]}}; }})
+        .then(function(data){{ if(q===latest) render((data&&data.items)||[], q); }})
+        .catch(function(err){{ if(err && err.name==='AbortError') return; if(q===latest) render([], q); }});
+    }}
+    input.setAttribute('autocomplete','off');
+    input.setAttribute('aria-autocomplete','list');
     input.addEventListener('input', function(){{
-      var q=input.value.trim().toLowerCase();
-      items.forEach(function(el){{
-        var t=(el.getAttribute('title')||el.textContent||'').toLowerCase();
-        var show=!q||t.indexOf(q)>=0;
-        el.style.display=show?'':'none';
-      }});
-      sections.forEach(function(sec){{
-        var has=[].slice.call(sec.querySelectorAll('.overview-link,.tree-dir-link,.tree-leaf')).some(function(el){{ return el.style.display!== 'none'; }});
-        sec.style.display=has?'':'none';
-      }});
+      var q=input.value.trim();
+      if(timer) clearTimeout(timer);
+      if(!q){{ hide(); return; }}
+      timer=setTimeout(function(){{ request(q); }}, 140);
     }});
+    input.addEventListener('focus', function(){{
+      var q=input.value.trim();
+      if(q) request(q);
+    }});
+    input.addEventListener('keydown', function(e){{
+      var open=box.classList.contains('is-open');
+      if(e.key==='ArrowDown'){{ e.preventDefault(); if(!open){{ var q=input.value.trim(); if(q) request(q); }} else setActive(active+1); }}
+      else if(e.key==='ArrowUp'){{ e.preventDefault(); if(open) setActive(active-1); }}
+      else if(e.key==='Escape'){{ hide(); }}
+      else if(e.key==='Enter' && open && active>=0){{
+        var els=currentItems();
+        if(els[active]){{ e.preventDefault(); window.location.href=els[active].href; }}
+      }}
+    }});
+    document.addEventListener('click', function(e){{ if(!form.contains(e.target)) hide(); }});
   }}
   function restoreDetails(){{
     var openSet={{}};
@@ -970,7 +1081,228 @@ function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='
   if(document.readyState==='loading'){{ document.addEventListener('DOMContentLoaded', init); }} else {{ init(); }}
 }})();
 </script></head>
-<body><div class="adbar">AIWIKI · <b>中文代码学习文档</b>：把仓库整理成可读的认知地图</div><header class="topbar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span><strong>AIWIKI</strong><span>代码文档</span></span></a><div class="search"><input id="nav-search" type="search" placeholder="搜索目录 / 文件 / 函数" aria-label="搜索目录文件函数"><kbd>⌘ K</kbd></div><nav class="top-actions"><a class="top-pill primary" href="/">项目库</a><button class="theme-toggle" type="button" onclick="toggleTheme()" aria-label="切换暗黑/正常模式"><span class="moon">☾</span><span class="sun">☀</span></button></nav></header>{mobile_nav}<div class="{layout_class}">{aside}<main><div class="content-wrap"><article class="card">{body}</article></div></main>{rightbar}</div></body></html>""".encode()
+<body><div class="adbar">AIWIKI · <b>中文代码学习文档</b>：把仓库整理成可读的认知地图</div><header class="topbar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span><strong>AIWIKI</strong><span>代码文档</span></span></a><form class="search" action="/search" method="get"><input id="nav-search" name="q" type="search" placeholder="搜索仓库 / 组织 / README" aria-label="搜索仓库组织README"><kbd>Ctrl K</kbd></form><nav class="top-actions"><a class="top-pill primary" href="/">项目库</a><button class="theme-toggle" type="button" onclick="toggleTheme()" aria-label="切换暗黑/正常模式"><span class="moon">☾</span><span class="sun">☀</span></button></nav></header>{mobile_nav}<div class="{layout_class}">{aside}<main><div class="content-wrap"><article class="card">{body}</article></div></main>{rightbar}</div></body></html>""".encode()
+
+
+SEARCH_REPO_LIMIT = 8
+SEARCH_README_LIMIT = 8
+SEARCH_SUGGEST_LIMIT = 8
+SEARCH_README_SAMPLE_LIMIT = 12000
+ROOT_README_RELS = {
+    "files/README.md.md",
+    "files/README.zh-CN.md.md",
+    "files/README.zh-cn.md.md",
+}
+
+
+def normalize_search_terms(query: str) -> list[str]:
+    return [t for t in re.split(r"[\s/._\-]+", query.lower().strip()) if t]
+
+
+def score_search_text(text: str, terms: list[str]) -> int:
+    low = text.lower()
+    score = 0
+    for term in terms:
+        if not term:
+            continue
+        count = low.count(term)
+        if count:
+            score += 12 + min(8, count * 2)
+    return score
+
+
+def first_markdown_heading(text: str) -> str:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+    return ""
+
+
+def excerpt_around_match(text: str, terms: list[str], width: int = 180) -> str:
+    clean = re.sub(r"\s+", " ", text).strip()
+    if not clean:
+        return ""
+    low = clean.lower()
+    positions = [low.find(term) for term in terms if term and low.find(term) >= 0]
+    if positions:
+        start = max(0, min(positions) - 50)
+        end = min(len(clean), start + width)
+        return clean[start:end].strip()
+    return clean[:width].strip()
+
+
+def root_readme_files(gen: Path):
+    if not gen.exists():
+        return
+    for rel in ROOT_README_RELS:
+        p = gen / rel
+        if p.exists():
+            yield rel, p
+
+
+def repo_search_context(row: sqlite3.Row) -> dict[str, str]:
+    repo_id = str(row["repo_id"])
+    source = str(row["source"] or "")
+    generated = str(row["generated_path"] or "")
+    repo_title = repo_display_title(source, repo_id, generated)
+    parsed = urllib.parse.urlparse(source)
+    parts = [seg for seg in parsed.path.split("/") if seg]
+    owner = parts[0] if len(parts) > 0 else ""
+    repo = parts[1] if len(parts) > 1 else repo_id.rsplit("-", 1)[0]
+    repo = repo[:-4] if repo.endswith(".git") else repo
+    subtitle = f"{owner}/{repo}" if owner and repo else (parsed.netloc or source)
+    return {
+        "repo_id": repo_id,
+        "source": source,
+        "generated": generated,
+        "repo_title": repo_title,
+        "owner": owner,
+        "repo": repo,
+        "subtitle": subtitle,
+        "repo_href": f"/repos/{repo_id}/",
+        "source_href": source,
+    }
+
+
+def search_repos_and_docs(query: str, limit_repos: int = SEARCH_REPO_LIMIT, limit_docs: int = SEARCH_README_LIMIT):
+    terms = normalize_search_terms(query)
+    if not terms:
+        return [], []
+    repo_hits = []
+    readme_hits = []
+    with db() as con:
+        rows = con.execute("SELECT * FROM repos ORDER BY updated_at DESC").fetchall()
+    for row in rows:
+        ctx = repo_search_context(row)
+        repo_text = " ".join([ctx["repo_title"], ctx["owner"], ctx["repo"], ctx["subtitle"]])
+        repo_score = score_search_text(repo_text, terms)
+        if repo_score:
+            repo_hits.append({
+                **ctx,
+                "score": repo_score,
+                "snippet": ctx["subtitle"],
+            })
+        gen = Path(ctx["generated"]) if ctx["generated"] else Path()
+        for rel, readme_path in root_readme_files(gen):
+            try:
+                raw = readme_path.read_text(encoding="utf-8", errors="replace")[:SEARCH_README_SAMPLE_LIMIT]
+            except Exception:
+                continue
+            readme_title = first_markdown_heading(raw) or "README"
+            readme_score = score_search_text(" ".join([ctx["repo_title"], ctx["subtitle"], readme_title, raw]), terms)
+            direct_repo_score = score_search_text(" ".join([ctx["repo_title"], ctx["owner"], ctx["repo"], ctx["subtitle"]]), terms)
+            if direct_repo_score:
+                readme_score += direct_repo_score + 40
+            if not readme_score:
+                continue
+            readme_hits.append({
+                **ctx,
+                "score": readme_score,
+                "doc_title": readme_title,
+                "doc_href": doc_href(ctx["repo_id"], rel),
+                "rel": rel,
+                "snippet": excerpt_around_match(raw, terms),
+            })
+    repo_hits.sort(key=lambda hit: (-hit["score"], hit["repo_title"].lower(), hit["repo_id"]))
+    readme_hits.sort(key=lambda hit: (-hit["score"], hit["repo_title"].lower(), hit["rel"]))
+    return repo_hits[:limit_repos], readme_hits[:limit_docs]
+
+
+def search_suggestions(query: str, limit: int = SEARCH_SUGGEST_LIMIT) -> list[dict[str, str]]:
+    repo_hits, readme_hits = search_repos_and_docs(query, limit_repos=limit, limit_docs=limit)
+    items = []
+    for hit in repo_hits:
+        items.append({
+            "type": "repo",
+            "label": hit["repo_title"],
+            "meta": hit["subtitle"],
+            "href": hit["repo_href"],
+            "score": int(hit["score"]),
+        })
+    for hit in readme_hits:
+        items.append({
+            "type": "readme",
+            "label": f"{hit['repo_title']} README",
+            "meta": hit["subtitle"],
+            "href": hit["doc_href"],
+            "score": int(hit["score"]),
+        })
+    items.sort(key=lambda item: (0 if item["type"] == "repo" else 1, -int(item["score"]), item["label"].lower(), item["href"]))
+    return items[:limit]
+
+
+def search_repo_card_html(hit: dict[str, str]) -> str:
+    title = html.escape(hit["repo_title"])
+    subtitle = html.escape(hit["subtitle"])
+    snippet = html.escape(hit["snippet"])
+    repo_href = html.escape(hit["repo_href"])
+    source_href = html.escape(hit["source_href"])
+    score = int(hit["score"])
+    return (
+        f"<li class='repo-card status-completed'>"
+        f"<a class='repo-card-link' href='{repo_href}' aria-label='打开文档 {title}'>"
+        f"<div class='repo-card-top'><span class='repo-kicker'>命中 {score}</span><span class='repo-status'>仓库</span></div>"
+        f"<div class='repo-card-body'>"
+        f"<div class='repo-title'>{title}</div>"
+        f"<div class='repo-subtitle'>{subtitle}</div>"
+        f"<div class='repo-meta'>{snippet}</div>"
+        f"</div>"
+        f"</a>"
+        f"<div class='repo-footer'><a class='repo-open' href='{source_href}' target='_blank' rel='noopener noreferrer' aria-label='打开仓库'></a></div>"
+        f"</li>"
+    )
+
+
+def search_doc_item_html(hit: dict[str, str]) -> str:
+    repo_title = html.escape(hit["repo_title"])
+    subtitle = html.escape(hit["subtitle"])
+    snippet = html.escape(hit["snippet"])
+    doc_href = html.escape(hit["doc_href"])
+    title = f"{repo_title} README"
+    return (
+        f"<li class='search-doc-item'><a class='search-doc-link' href='{doc_href}' aria-label='打开 {title}'>"
+        f"<div class='search-doc-top'><strong>{title}</strong><span>{subtitle}</span></div>"
+        f"<p>{snippet}</p>"
+        f"</a></li>"
+    )
+
+
+def search_page_body(query: str) -> str:
+    q = query.strip()
+    if not q:
+        return (
+            "<div class='search-page'>"
+            "<section class='home-hero search-hero'>"
+            "<p class='home-kicker'>AIWIKI 搜索</p>"
+            "<h1 class='home-title'>站内搜索</h1>"
+            "<p class='home-subtitle'>输入仓库名、组织名或 README 关键词，回车后会搜索这些轻量索引。</p>"
+            "</section>"
+            "<section class='search-help'><div class='search-summary'><strong>提示：</strong>顶部搜索框支持下拉联想，也可以回车进入完整结果页。</div></section>"
+            "</div>"
+        )
+    repo_hits, readme_hits = search_repos_and_docs(q)
+    repo_html = "".join(search_repo_card_html(hit) for hit in repo_hits) or "<li class='repo-card'><span class='muted'>没有找到匹配的仓库。</span></li>"
+    readme_html = "".join(search_doc_item_html(hit) for hit in readme_hits) or "<li class='search-doc-item'><div class='search-doc-link'><p>没有找到匹配的 README。</p></div></li>"
+    total = len(repo_hits) + len(readme_hits)
+    return (
+        "<div class='search-page'>"
+        "<section class='home-hero search-hero'>"
+        "<p class='home-kicker'>AIWIKI 搜索</p>"
+        f"<h1 class='home-title'>搜索：{html.escape(q)}</h1>"
+        "<p class='home-subtitle'>搜索范围已收窄为仓库名、组织名和根 README，不再全量扫描所有生成文档。</p>"
+        f"<div class='search-summary'><strong>{len(repo_hits)}</strong> 个仓库命中，<strong>{len(readme_hits)}</strong> 个 README 命中，共 <strong>{total}</strong> 条结果。</div>"
+        "</section>"
+        "<section class='search-section'>"
+        "<div class='home-section-head'><p class='home-section-kicker'>Repository Hits</p><div class='home-section-title'>仓库命中</div></div>"
+        f"<ul class='repo-list repo-grid'>{repo_html}</ul>"
+        "</section>"
+        "<section class='search-section'>"
+        "<div class='home-section-head'><p class='home-section-kicker'>README Hits</p><div class='home-section-title'>README 命中</div></div>"
+        f"<ul class='search-doc-list'>{readme_html}</ul>"
+        "</section>"
+        "</div>"
+    )
 
 
 OVERVIEW_DOCS = [
@@ -1155,17 +1487,30 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/assets/"):
             self.send_asset(path); return
         if path=="/":
-            with db() as con: repos=con.execute("SELECT * FROM repos ORDER BY updated_at DESC LIMIT 50").fetchall()
+            with db() as con: repos=con.execute("SELECT * FROM repos WHERE status IN ('queued','generating','completed','failed') ORDER BY updated_at DESC LIMIT 50").fetchall()
             repo_html="".join(repo_card_html(r) for r in repos) or "<li class='repo-card'><span class='muted'>还没有生成过项目文档。</span></li>"
             self.send_html("AIWIKI 项目库", f"<div class='home-page'><section class='home-hero'><p class='home-kicker'>AIWIKI 项目库</p><h1 class='home-title'>AIWIKI，把代码仓库整理成一页页能读懂的文档。</h1><p class='home-subtitle'>把 GitHub 或 GitLab 仓库导入后，系统会先给出项目名、目录和阅读顺序，再展开为结构化中文讲解。</p><form class='source-form' method='post' action='/submit'><input name='source' aria-label='仓库地址' placeholder='https://github.com/org/repo 或 https://gitlab.com/group/repo'><button type='submit'>开始整理文档</button></form></section><section class='home-library'><div class='home-section-head'><p class='home-section-kicker'>Project Library</p><div class='home-section-title'>项目库</div></div><ul class='repo-list repo-grid'>{repo_html}</ul></section></div>") ; return
+        if path == "/search/suggest":
+            q = urllib.parse.parse_qs(u.query).get("q", [""])[0].strip()
+            self.send_json({"items": search_suggestions(q) if q else []}); return
+        if path == "/search":
+            q = urllib.parse.parse_qs(u.query).get("q", [""])[0].strip()
+            self.send_html(f"搜索：{q or 'AIWIKI'}", search_page_body(q)); return
         if path.startswith("/jobs/"):
             jid=path.split("/",2)[2]
             with db() as con: j=con.execute("SELECT * FROM jobs WHERE job_id=?",(jid,)).fetchone()
-            if not j: self.send_html("404","<h1>Job not found</h1>",404); return
-            link=f"<p><a href='/repos/{j['repo_id']}/'>打开文档</a></p>" if j['status']=="completed" else "<script>setTimeout(()=>location.reload(),3000)</script>"
-            self.send_html("Job", f"<h1>任务 {html.escape(jid)}</h1><p>状态：<b>{html.escape(j['status'])}</b></p><p>{html.escape(j['message'] or '')}</p>{link}<pre>{html.escape(j['log'] or '')}</pre>"); return
+            if not j: self.send_html("404","<h1>任务不存在</h1><p>这个任务记录不存在或已被清理。</p>",404); return
+            if j["status"] == "completed":
+                link=f"<p><a href='/repos/{j['repo_id']}/'>打开文档</a></p>"
+            elif j["status"] == "rejected":
+                link="<p class='muted'>这个仓库未生成文档，也不会出现在首页项目库中；服务已删除本地源码缓存和生成文档目录。</p><p><a href='/'>返回项目库</a></p>"
+            else:
+                link="<script>setTimeout(()=>location.reload(),3000)</script>"
+            self.send_html("任务状态", f"<h1>任务 {html.escape(jid)}</h1><p>状态：<b>{html.escape(j['status'])}</b></p><p>{html.escape(j['message'] or '')}</p>{link}<pre>{html.escape(j['log'] or '')}</pre>"); return
         if path.startswith("/repos/"):
             parts=path.strip("/").split("/",2); repo_id=parts[1]; sub=parts[2] if len(parts)>2 else ""
+            if not repo_exists(repo_id):
+                self.send_html("404","<h1>文档不存在</h1>",404); return
             gen=BASE/"generated"/repo_id
             if sub.rstrip("/") == "signals":
                 qs=urllib.parse.parse_qs(u.query)
@@ -1201,8 +1546,11 @@ class Handler(BaseHTTPRequestHandler):
         if not is_remote(source):
             self.send_html("输入无效","<h1>输入无效</h1><p>只接受 GitHub/GitLab HTTPS 仓库 URL。</p>",400); return
         rid=slugify(source); jid=job_id_for(source); t=now()
+        purge_repo_material(rid)
         with db() as con:
-            con.execute("INSERT OR REPLACE INTO repos(repo_id,source,local_path,generated_path,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",(rid,source,"",str(BASE/"generated"/rid),"queued",t,t))
+            con.execute("DELETE FROM repos WHERE repo_id=?", (rid,))
+            con.execute("DELETE FROM jobs WHERE repo_id=?", (rid,))
+            con.execute("INSERT INTO repos(repo_id,source,local_path,generated_path,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",(rid,source,"",str(BASE/"generated"/rid),"queued",t,t))
             con.execute("INSERT INTO jobs(job_id,repo_id,source,status,message,log,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",(jid,rid,source,"queued","已排队","",t,t))
         job_q.put(jid); self.redirect(f"/jobs/{jid}")
     def log_message(self, fmt, *args): print("%s - %s"%(self.address_string(), fmt%args), flush=True)
