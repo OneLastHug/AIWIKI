@@ -97,6 +97,7 @@ def repo_card_context(source: str, repo_id: str, status: str) -> dict[str, str]:
             "meta": "本地目录",
             "status_label": status_label,
             "status_class": f"status-{status or 'unknown'}",
+            "type_class": "card-local",
         }
     parsed = urllib.parse.urlparse(source)
     host = (parsed.netloc or "").lower()
@@ -104,7 +105,15 @@ def repo_card_context(source: str, repo_id: str, status: str) -> dict[str, str]:
     owner = parts[0] if len(parts) > 0 else ""
     repo = parts[1] if len(parts) > 1 else repo_id.rsplit("-", 1)[0]
     repo = repo[:-4] if repo.endswith(".git") else repo
-    kicker = "GitHub" if "github.com" in host else "GitLab" if "gitlab.com" in host else (parsed.netloc or "Remote Repo")
+    if "github.com" in host:
+        kicker = "GitHub"
+        type_class = "card-github"
+    elif "gitlab.com" in host:
+        kicker = "GitLab"
+        type_class = "card-gitlab"
+    else:
+        kicker = parsed.netloc or "Remote Repo"
+        type_class = "card-remote"
     subtitle = f"{owner}/{repo}" if owner and repo else (parsed.netloc or source)
     meta = source
     return {
@@ -114,6 +123,7 @@ def repo_card_context(source: str, repo_id: str, status: str) -> dict[str, str]:
         "meta": meta,
         "status_label": status_label,
         "status_class": f"status-{status or 'unknown'}",
+        "type_class": type_class,
     }
 
 
@@ -122,7 +132,7 @@ def repo_card_html(row: sqlite3.Row) -> str:
     href = f"/repos/{row['repo_id']}/"
     repo_id_text = html.escape(str(row["repo_id"]))
     return (
-        f"<li class='repo-card {ctx['status_class']}'>"
+        f"<li class='repo-card {ctx['status_class']} {ctx['type_class']}'>"
         f"<a class='repo-card-link' href='{href}'>"
         f"<div class='repo-card-top'><span class='repo-kicker'>{html.escape(ctx['kicker'])}</span>"
         f"<span class='repo-status'>{html.escape(ctx['status_label'])}</span></div>"
@@ -617,6 +627,98 @@ def md_inline(s: str) -> str:
     return "".join(out)
 
 
+_CODE_KEYWORDS = {
+    # python
+    "def", "class", "return", "if", "elif", "else", "for", "while", "import", "from", "as",
+    "in", "is", "not", "and", "or", "None", "True", "False", "async", "await", "lambda",
+    "with", "try", "except", "finally", "raise", "yield", "global", "nonlocal", "pass",
+    "break", "continue", "assert", "del", "self", "cls", "print", "nonlocal",
+    # js / ts
+    "const", "let", "var", "function", "new", "typeof", "instanceof", "null", "undefined",
+    "export", "default", "of", "switch", "case", "do", "void", "this", "super", "extends",
+    "static", "get", "set", "interface", "type", "enum", "implements", "readonly", "public",
+    "private", "protected", "namespace", "declare", "abstract", "as",
+    # go / rust / c / java-ish
+    "func", "go", "defer", "range", "make", "chan", "select", "map", "package", "fallthrough",
+    "pub", "fn", "let", "mut", "use", "impl", "trait", "struct", "mod", "crate", "move", "ref",
+    "match", "where", "unsafe", "extern", "Self", "int", "float", "double", "char", "void",
+    "long", "short", "unsigned", "signed", "sizeof", "struct", "union", "const",
+    # shell / misc
+    "echo", "set", "local", "then", "fi", "done", "esac",
+}
+
+_NUM_RE = re.compile(r"(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\d[\d_]*\.?\d*(?:[eE][+-]?\d+)?)")
+
+
+def highlight_code(raw: str, lang: str = "") -> str:
+    """Tokenize raw source into colored spans (visual only). Output is HTML-escaped."""
+    out: list[str] = []
+    i, n = 0, len(raw)
+    while i < n:
+        ch = raw[i]
+        nxt = raw[i + 1] if i + 1 < n else ""
+        # block comment /* */
+        if ch == "/" and nxt == "*":
+            end = raw.find("*/", i + 2)
+            end = (end + 2) if end != -1 else n
+            out.append('<span class="tok-com">' + html.escape(raw[i:end]) + "</span>")
+            i = end
+            continue
+        # line comment # or //
+        if ch == "#" or (ch == "/" and nxt == "/"):
+            end = raw.find("\n", i)
+            end = end if end != -1 else n
+            out.append('<span class="tok-com">' + html.escape(raw[i:end]) + "</span>")
+            i = end
+            continue
+        # strings: " ' `
+        if ch in ("\"", "'", "`"):
+            j = i + 1
+            while j < n:
+                if raw[j] == "\\":
+                    j += 2
+                    continue
+                j += 1
+                if j - 1 < n and raw[j - 1] == ch:
+                    break
+            out.append('<span class="tok-str">' + html.escape(raw[i:j]) + "</span>")
+            i = j
+            continue
+        # numbers
+        if ch.isdigit() or (ch == "." and nxt.isdigit()):
+            m = _NUM_RE.match(raw, i)
+            if m:
+                out.append('<span class="tok-num">' + html.escape(m.group(0)) + "</span>")
+                i = m.end()
+                continue
+        # identifiers / keywords / calls
+        if ch.isalpha() or ch == "_" or ch == "$":
+            j = i + 1
+            while j < n and (raw[j].isalnum() or raw[j] in "_$"):
+                j += 1
+            word = raw[i:j]
+            esc = html.escape(word)
+            if word in _CODE_KEYWORDS:
+                out.append('<span class="tok-kw">' + esc + "</span>")
+            elif j < n and raw[j] == "(":
+                out.append('<span class="tok-fn">' + esc + "</span>")
+            else:
+                out.append(esc)
+            i = j
+            continue
+        # decorators / preprocessor @...
+        if ch == "@" and nxt.isalpha():
+            j = i + 1
+            while j < n and (raw[j].isalnum() or raw[j] == "_"):
+                j += 1
+            out.append('<span class="tok-dec">' + html.escape(raw[i:j]) + "</span>")
+            i = j
+            continue
+        out.append(html.escape(ch))
+        i += 1
+    return "".join(out)
+
+
 def render_md(text: str) -> str:
     out=[]; code=[]; in_code=False; code_lang=""; code_in_list=False; list_type=None; quote=[]; para=[]; last_li_open=False; pending_list_blank=False
 
@@ -691,8 +793,7 @@ def render_md(text: str) -> str:
                     close_list()
                 in_code=True; code=[]; code_lang=stripped[3:].strip().split()[0] if stripped[3:].strip() else ""
             else:
-                cls=f' class="language-{html.escape(code_lang)}"' if code_lang else ""
-                out.append("<pre><code"+cls+">"+html.escape("\n".join(code))+"</code></pre>")
+                out.append(_code_block("\n".join(code), code_lang))
                 in_code=False; code_lang=""; code_in_list=False; pending_list_blank=False
             i+=1; continue
         if in_code:
@@ -748,8 +849,23 @@ def render_md(text: str) -> str:
             close_list()
         para.append(line); i+=1
     close_quote(); flush_para(); close_list()
-    if in_code: out.append("<pre><code>"+html.escape("\n".join(code))+"</code></pre>")
+    if in_code: out.append(_code_block("\n".join(code), code_lang))
     return "\n".join(out)
+
+
+def _code_block(code: str, lang: str = "") -> str:
+    lang = (lang or "").strip()
+    lang_esc = html.escape(lang)
+    name = html.escape(lang or "code")
+    body = highlight_code(code, lang)
+    return (
+        f'<figure class="code-block" data-lang="{lang_esc}">'
+        f'<div class="code-head"><span class="dot d-r"></span><span class="dot d-y"></span>'
+        f'<span class="dot d-g"></span><span class="code-name">{name}</span>'
+        f'<button class="code-copy" type="button" onclick="copyCode(this)" aria-label="复制代码">复制</button></div>'
+        f'<pre><code class="language-{lang_esc or "text"}">{body}</code></pre>'
+        f'</figure>'
+    )
 
 
 def shorten_sidebar_label(path: str, max_len: int = 52) -> str:
@@ -785,7 +901,7 @@ def load_repo_progress(repo_id: str | None) -> dict | None:
 def progress_card_html(repo_id: str | None) -> str:
     pr = load_repo_progress(repo_id)
     if not pr:
-        return "<div class='right-card progress-card'><div class='right-label'>认知地图</div><strong>准备中</strong><div class='progress'><span></span></div><small>正在生成项目级阅读地图</small></div>"
+        return "<div class='progress-card'><div class='progress-label'>认知地图</div><strong>准备中</strong><div class='progress'><span></span></div><small>正在生成项目级阅读地图</small></div>"
     done = int(pr.get('core_done') or pr.get('done') or 0)
     total = int(pr.get('core_total') or pr.get('total') or 0)
     skipped = int(pr.get('skipped') or 0)
@@ -795,70 +911,65 @@ def progress_card_html(repo_id: str | None) -> str:
     unit = html.escape(str(pr.get('unit') or '核心文档'))
     skipped_text = f"<br>已跳过：{skipped} 个低价值节点" if skipped else ""
     coverage = html.escape(str(pr.get('coverage') or '认知地图生成'))
-    return f"<div class='right-card progress-card'><div class='right-label'>{coverage}</div><strong>{done} / {total}</strong><div class='progress'><span style='width:{max(0,min(100,percent)):.1f}%'></span></div><small>{unit} 完成率 {percent:.1f}%{skipped_text}<br>状态：{status}<br>{current}</small></div>"
+    return f"<div class='progress-card'><div class='progress-label'>{coverage}</div><strong>{done} / {total}</strong><div class='progress'><span style='width:{max(0,min(100,percent)):.1f}%'></span></div><small>{unit} 完成率 {percent:.1f}%{skipped_text}<br>状态：{status}<br>{current}</small></div>"
 
 def page(title: str, body: str, sidebar: str = "", repo_id: str | None = None) -> bytes:
     has_sidebar = bool(sidebar.strip())
     escaped_title = html.escape(title)
+    progress = progress_card_html(repo_id) if has_sidebar else ""
     sidebar_panel = (
         "<div class='sidebar-panel'>"
-        "<div class='side-kicker'>欢迎使用 REPO DOCS</div>"
-        "<h2 class='sidebar-title'><a href='/'>文档</a></h2>"
+        "<a class='sidebar-home' href='/'>‹ 返回首页</a>"
+        f"{progress}"
+        "<div class='sidebar-search'><input id='nav-search' type='search' placeholder='搜索目录 / 文件 / 函数' aria-label='搜索文档'></div>"
         f"{sidebar}"
         "</div>"
     ) if has_sidebar else ""
     mobile_nav = (
-        "<details class='mobile-nav'>"
-        "<summary><span>文档目录</span><span class='chevron'>⌄</span></summary>"
+        "<details class='mobile-nav' id='mobile-nav'>"
+        "<summary><span class='m-nav-icon' aria-hidden='true'>☰</span><span>文档目录</span><span class='chevron'>⌄</span></summary>"
         f"<div class='mobile-nav-body'>{sidebar_panel}</div>"
         "</details>"
     ) if has_sidebar else ""
-    aside = f"<aside class='sidebar'>{sidebar_panel}</aside>" if has_sidebar else ""
+    aside = f"<aside class='sidebar' id='doc-sidebar'><div class='sidebar-inner'>{sidebar_panel}</div></aside>" if has_sidebar else ""
     rightbar = (
-        "<aside class='rightbar'>"
-        + progress_card_html(repo_id) +
-        "<div class='right-card'><div class='right-label'>页面目录</div><div id='page-toc' class='page-toc'><span class='muted'>加载中…</span></div></div><div class='right-card'><div class='right-label'>阅读建议</div><p>先看首页路线，再读架构与目录，再进入文件级讲解。展开状态会自动记住。</p></div>"
-        "<div class='right-card'><div class='right-label'>过滤规则</div><p>纯 MD / PDF / Office 文档仓库会被拒绝，只保留代码学习项目。</p></div>"
+        "<aside class='toc-rail' aria-label='本页目录'>"
+        "<div class='rail-card'><div class='rail-label'>本页目录</div>"
+        "<div id='page-toc' class='page-toc'><span class='muted'>加载中…</span></div></div>"
         "</aside>"
     ) if has_sidebar else ""
-    layout_class = "layout has-sidebar" if has_sidebar else "layout no-sidebar"
+    layout_class = "doc-layout has-toc" if has_sidebar else "home-layout"
+    if has_sidebar:
+        main_inner = "<main class='main'><div class='doc-main'><article class='prose'>" + body + "</article></div></main>"
+    elif body.lstrip().startswith("<div class='home-page'"):
+        main_inner = "<main class='main'><div class='home-wrap'>" + body + "</div></main>"
+    else:
+        main_inner = "<main class='main'><div class='doc-main'><article class='prose'>" + body + "</article></div></main>"
     return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><title>{escaped_title}</title>
 <style>
 @import url('/assets/fonts/noto-sans-sc-400.css');
 @import url('/assets/fonts/noto-sans-sc-700.css');
-:root{{--bg:#eef2f6;--top:#fff;--panel:#fff;--panel-2:#f7f9fb;--card:#fff;--section-bg:#fbfdfb;--text:#1f2933;--text-2:#344054;--muted:#73808c;--border:#dde4eb;--border-2:#c6d0da;--accent:#169957;--accent-2:#30b36a;--link:#1769aa;--code-bg:#f7f9fc;--quote:#f2faf5;--soft:#f8fafc;--header-h:56px;--sidebar-w:300px;--right-w:260px;color-scheme:light}}
-:root[data-theme='dark']{{--bg:#111418;--top:#151a20;--panel:#171d24;--panel-2:#1d242c;--card:#151a20;--section-bg:#151d18;--text:#eef2f5;--text-2:#cbd3db;--muted:#8f9aa6;--border:rgba(255,255,255,.1);--border-2:rgba(255,255,255,.17);--accent:#69db7c;--accent-2:#38d9a9;--link:#74c0fc;--code-bg:#10151b;--quote:#172219;--soft:#131920;color-scheme:dark}}
-*{{box-sizing:border-box}}html{{font-size:16px;scroll-padding-top:calc(var(--header-h) + 18px)}}body{{margin:0;background:var(--bg);color:var(--text);font-family:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;line-height:1.85;overflow-x:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}}a{{color:inherit;text-decoration:none;overflow-wrap:anywhere}}a:hover{{color:var(--accent)}}img,table{{max-width:100%}}p,li,.muted,.repo-id,.repo-link,summary,small{{overflow-wrap:anywhere;word-break:break-word}}::selection{{background:rgba(31,157,85,.18)}}
-.adbar{{height:34px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#f8fafc;color:#56616d;border-bottom:1px solid var(--border);font-size:13px}}:root[data-theme='dark'] .adbar{{background:#111820;color:#d6dde3}}.adbar b{{color:var(--accent);font-weight:650}}
-.topbar{{position:sticky;top:0;z-index:60;height:var(--header-h);display:grid;grid-template-columns:auto minmax(120px,520px) auto;align-items:center;gap:18px;padding:0 22px;background:rgba(255,255,255,.94);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}}:root[data-theme='dark'] .topbar{{background:rgba(21,26,32,.92)}}.brand{{display:flex;align-items:center;gap:12px;min-width:0}}.brand-mark{{position:relative;width:28px;height:22px;display:inline-block}}.brand-mark:before,.brand-mark:after{{content:'';position:absolute;width:19px;height:6px;border-radius:99px;background:var(--accent);transform:skewX(-22deg)}}.brand-mark:before{{left:0;top:2px}}.brand-mark:after{{right:0;bottom:2px}}.brand strong{{font-size:18px;font-weight:720}}.brand span{{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}}.brand span span{{padding-left:10px;border-left:1px solid var(--border)}}.search{{height:36px;border:1px solid var(--border);background:var(--panel-2);border-radius:6px;display:flex;align-items:center;gap:10px;color:var(--muted);padding:0 10px 0 12px;font-size:14px}}.search input{{flex:1;border:0;background:transparent;color:var(--text);font:inherit;min-width:80px;outline:0;padding:0}}.search input::placeholder{{color:var(--muted)}}.search kbd{{margin-left:auto;border:1px solid var(--border-2);border-radius:4px;padding:1px 6px;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel)}}.top-actions{{display:flex;gap:9px;align-items:center;justify-content:flex-end}}.top-pill,.theme-toggle{{height:36px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:6px;padding:0 12px;font-size:13px;font-weight:570;background:var(--panel);color:var(--text-2);cursor:pointer}}.top-pill.primary{{background:var(--accent);color:#fff;border-color:transparent}}.theme-toggle{{width:38px;padding:0;font-size:17px}}.theme-toggle .moon{{display:none}}:root[data-theme='dark'] .theme-toggle .moon{{display:inline}}:root[data-theme='dark'] .theme-toggle .sun{{display:none}}
-.layout{{display:grid;min-height:calc(100vh - var(--header-h) - 34px)}}.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr) var(--right-w)}}.layout.no-sidebar{{grid-template-columns:minmax(0,1fr)}}.sidebar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;background:var(--panel);border-right:1px solid var(--border);padding:22px 16px 34px;resize:horizontal;min-width:240px;max-width:620px;width:var(--sidebar-w);scrollbar-gutter:stable}}.sidebar-panel{{display:grid;gap:12px}}.side-kicker,.right-label{{font:700 11px/1.35 'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}}.sidebar-title{{margin:0 0 8px;font-size:17px;line-height:1.25}}.repo-id{{display:inline-flex;width:fit-content;max-width:100%;padding:5px 9px;border:1px solid color-mix(in srgb,var(--accent) 42%,transparent);border-radius:5px;background:color-mix(in srgb,var(--accent) 9%,transparent);color:var(--accent);font-size:12px;font-weight:650}}
-.repo-nav{{display:block}}.nav-section{{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}}.nav-section:last-child{{border-bottom:0;margin-bottom:0;padding-bottom:0}}.nav-section-title{{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}}.overview-link{{display:block;padding:7px 9px;border-radius:5px;color:var(--text-2);font-size:13px;line-height:1.5}}.overview-link:hover{{background:var(--panel-2);color:var(--text);text-decoration:none}}.repo-tree{{display:grid;gap:3px}}.tree-node,.tree-leaf{{display:block;min-width:0}}.tree-node>summary,.tree-leaf{{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:5px;color:var(--text-2);font-size:13px;line-height:1.48}}.tree-node>summary{{cursor:pointer;list-style:none;user-select:none}}.tree-node>summary::-webkit-details-marker{{display:none}}.tree-summary:focus,.tree-summary:focus-visible,.tree-toggle:focus,.tree-toggle:focus-visible,.tree-toggle:active,.tree-dir-link:focus,.tree-dir-link:focus-visible{{outline:none!important;box-shadow:none!important;background:transparent!important}}.tree-toggle,.tree-toggle-spacer{{flex:0 0 auto;width:18px;height:18px;padding:0;border:0;appearance:none;-webkit-appearance:none;border-radius:0;background:transparent!important;color:var(--muted);cursor:pointer;font:700 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:inline-flex;align-items:center;justify-content:center;outline:none!important;box-shadow:none!important;-webkit-tap-highlight-color:transparent}}.tree-toggle-spacer{{cursor:default;visibility:hidden}}.tree-node[open] .tree-toggle{{transform:rotate(90deg)}}.tree-dir-link{{flex:1 1 auto;min-width:0;color:inherit}}.tree-node>summary:hover,.tree-leaf:hover,.overview-link:hover{{background:var(--panel-2);color:var(--text);text-decoration:none}}.is-active{{background:color-mix(in srgb,var(--accent) 10%,transparent)!important;color:var(--accent)!important;border-color:transparent!important;box-shadow:none!important;font-weight:700}}.tree-children{{display:grid;gap:2px;margin-left:13px;padding-left:10px;border-left:1px solid var(--border)}}.tree-label{{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.tree-missing{{opacity:.7}}
-main{{min-width:0;padding:40px 48px 92px;background:linear-gradient(180deg,#f9fbfc 0,#eef3f5 320px,var(--bg) 100%)}}.content-wrap{{width:min(100%,820px);margin:0 auto}}.card{{min-width:0;background:var(--card);border:1px solid var(--border);border-radius:22px;padding:56px 64px 72px;box-shadow:0 16px 36px rgba(16,24,40,.07)}}:root[data-theme='dark'] main{{background:var(--bg)}}:root[data-theme='dark'] .card{{box-shadow:none}}.layout.no-sidebar main{{padding-top:64px}}.layout.no-sidebar .content-wrap{{width:min(100%,1080px)}}.layout.no-sidebar .card{{padding:68px 76px 82px}}
-.card h1{{font-size:34px;line-height:1.34;margin:0 0 30px;padding-bottom:24px;border-bottom:1px solid var(--border);color:var(--text);font-weight:760;overflow-wrap:anywhere;word-break:break-word}}.layout.has-sidebar .card h1{{font-size:34px}}.card h2{{position:relative;font-size:24px;line-height:1.48;margin:54px 0 22px;padding:10px 0 12px 18px;border-bottom:1px solid var(--border);color:var(--text);font-weight:760;overflow-wrap:anywhere}}.card h2:before{{content:'';position:absolute;left:0;top:15px;width:5px;height:1.28em;border-radius:99px;background:var(--accent)}}.card h3{{position:relative;font-size:20px;line-height:1.58;margin:38px 0 16px;padding-left:15px;color:var(--text);font-weight:730;overflow-wrap:anywhere}}.card h3:before{{content:'';position:absolute;left:0;top:.78em;width:6px;height:6px;border-radius:50%;background:var(--accent)}}.card h4,.card h5,.card h6{{margin:28px 0 12px;line-height:1.5;color:var(--text);font-weight:700;overflow-wrap:anywhere}}.card p{{margin:0 0 22px;color:var(--text-2);font-size:16px;line-height:2.04}}.card>p:not(.lead-code){{text-indent:2em}}.card>p.lead-code{{text-indent:0;padding-left:2em}}.card p+p{{margin-top:2px}}.card ul,.card ol{{padding-left:1.75rem;margin:0 0 24px;color:var(--text-2)}}.card>ul,.card>ol{{margin:8px 0 30px;padding:16px 22px 16px 2.55rem;border-left:3px solid color-mix(in srgb,var(--accent) 54%,transparent);border-radius:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 8%,transparent),var(--section-bg) 42%)}}.card li{{margin:9px 0;padding-left:.22em;line-height:1.9}}.card li p{{margin:8px 0 0;text-indent:0;line-height:1.85}}.card li.depth-1{{margin-left:1.25rem}}.card li.depth-2{{margin-left:2.5rem}}.card li.depth-3{{margin-left:3.75rem}}.card li.depth-4,.card li.depth-5{{margin-left:5rem}}.card li::marker{{color:var(--accent);font-weight:800}}.card li input[type='checkbox']{{margin-right:8px;vertical-align:-1px}}.card strong{{font-weight:760;color:var(--text)}}.card a{{color:var(--link);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--link) 24%,transparent)}}.card a:hover{{color:var(--accent);border-bottom-color:var(--accent)}}.muted{{color:var(--muted)!important}}small{{color:var(--muted);font-size:13px}}
-.card h1.doc-title{{font-size:inherit;line-height:1.25;margin-bottom:36px}}.doc-title-kind{{display:inline-flex;align-items:center;margin:0 0 13px;padding:3px 9px;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:999px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);font-size:13px;font-weight:760;line-height:1.35}}.doc-title-path{{display:block;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:30px;font-weight:750;line-height:1.3;overflow-wrap:anywhere;word-break:break-word}}
-.card blockquote{{margin:28px 0;padding:17px 20px;border-left:4px solid var(--accent);background:var(--quote);border-radius:0 6px 6px 0;color:var(--text-2)}}.card blockquote p{{margin:0 0 10px;text-indent:0}}.card blockquote p:last-child{{margin-bottom:0}}hr{{height:1px;border:0;background:var(--border);margin:38px 0}}pre{{max-width:100%;overflow-x:auto;overflow-y:hidden;background:var(--code-bg);border:1px solid var(--border);padding:18px 20px;border-radius:6px;margin:24px 0 30px;color:var(--text)}}pre code{{display:block;min-width:max-content;background:none;border:0;padding:0;border-radius:0;white-space:pre;font:13px/1.72 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;color:var(--text-2)}}code{{background:var(--code-bg);border:1px solid var(--border);padding:.12em .38em;border-radius:4px;font:0.9em/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#c7254e;overflow-wrap:anywhere;word-break:break-word;-webkit-box-decoration-break:clone;box-decoration-break:clone}}:root[data-theme='dark'] code{{color:#ffb3c1}}.table-wrap{{max-width:100%;overflow:auto;margin:24px 0 30px;border:1px solid var(--border);border-radius:6px}}table{{width:100%;border-collapse:collapse;background:var(--panel)}}th,td{{padding:11px 13px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-size:14px;line-height:1.6;text-align:left;vertical-align:top}}th:last-child,td:last-child{{border-right:0}}tr:last-child td{{border-bottom:0}}th{{background:var(--panel-2);color:var(--text);font-weight:700}}
-.source-form{{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:32px 0 38px;padding:10px;border:1px solid color-mix(in srgb,var(--accent) 16%,var(--border));border-radius:16px;background:linear-gradient(180deg,var(--panel) 0,var(--panel-2) 100%);box-shadow:0 12px 28px rgba(15,23,42,.06);max-width:860px}}input{{flex:1 1 360px;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:14px 16px}}input::placeholder{{color:var(--muted)}}button{{flex:0 0 auto;border:0;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;font:700 14px/1.4 inherit;padding:13px 18px;cursor:pointer;box-shadow:0 10px 24px rgba(22,153,87,.18)}}button:hover{{filter:brightness(.98)}}button:focus,input:focus,.theme-toggle:focus{{outline:2px solid color-mix(in srgb,var(--accent) 42%,transparent);outline-offset:2px}}
-.home-page{{display:grid;gap:34px}}.home-page p{{text-indent:0!important}}.home-hero{{padding:10px 0 4px}}.home-kicker{{margin:0 0 12px;color:var(--accent);font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}}.home-title{{margin:0;font-size:46px;line-height:1.14;letter-spacing:-.03em;color:var(--text)}}.home-subtitle{{max-width:760px;margin:16px 0 0;color:var(--text-2);font-size:17px;line-height:1.9}}.home-library{{display:grid;gap:18px}}.home-section-head{{display:grid;gap:6px;margin:0;padding:0}}.home-section-kicker{{margin:0;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}}.home-section-title{{margin:0;font-size:28px;line-height:1.2;color:var(--text)}}.card ul.repo-list{{list-style:none;margin:0;padding:0;border:0;background:none}}.card>ul.repo-list{{margin:0;padding:0;border:0;background:none}}.repo-list{{display:grid;gap:18px;list-style:none;margin:0;padding:0!important}}.repo-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}}.repo-card{{margin:0;border:1px solid color-mix(in srgb,var(--accent) 12%,var(--border));border-radius:22px;background:linear-gradient(180deg,var(--panel) 0,var(--panel-2) 100%);box-shadow:0 18px 40px rgba(15,23,42,.06);overflow:hidden;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}}.repo-card:hover{{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 28%,var(--border-2));box-shadow:0 24px 46px rgba(15,23,42,.1)}}.repo-card-link{{display:grid;gap:14px;padding:22px 22px 20px;color:inherit}}.repo-card-top{{display:flex;align-items:center;justify-content:space-between;gap:12px}}.repo-kicker{{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent);font-size:12px;font-weight:780;letter-spacing:.04em;text-transform:uppercase}}.repo-status{{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:var(--soft);border:1px solid var(--border);color:var(--text-2);font-size:12px;font-weight:700}}.repo-title{{font-size:30px;line-height:1.12;font-weight:820;color:var(--text);letter-spacing:-.03em;overflow-wrap:anywhere;word-break:break-word}}.repo-subtitle{{color:var(--text-2);font-size:15px;font-weight:700;line-height:1.62;overflow-wrap:anywhere;word-break:break-word}}.repo-meta{{color:var(--muted);font-size:13px;line-height:1.68;white-space:normal;overflow-wrap:anywhere;word-break:break-word}}.repo-footer{{display:flex;align-items:center;justify-content:flex-start;gap:12px;padding-top:10px;border-top:1px solid var(--border)}}.repo-open{{color:var(--accent);font-size:14px;font-weight:760}}.repo-idline{{color:var(--muted);font-size:11px;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:normal;overflow-wrap:anywhere;word-break:break-word}}
-.rightbar{{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow:auto;border-left:1px solid var(--border);padding:22px 16px;background:var(--panel)}}.right-card{{border:1px solid var(--border);border-radius:4px;background:var(--soft);padding:14px;margin-bottom:14px;color:var(--text-2)}}.right-card p{{font-size:13px;line-height:1.65;margin:.55em 0 0;color:var(--muted)}}.page-toc{{display:grid;gap:4px}}.toc-link{{display:block;padding:6px 8px;border-radius:4px;color:var(--text-2);font-size:12px;line-height:1.45;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:2px solid transparent}}.toc-link:hover{{background:var(--panel);color:var(--text);border-left-color:var(--accent)}}.toc-lv-h1{{padding-left:8px}}.toc-lv-h2{{padding-left:18px}}.toc-lv-h3{{padding-left:28px}}.progress-card strong{{display:block;margin:8px 0;font-size:22px}}.progress{{height:8px;background:var(--panel-2);border-radius:99px;overflow:hidden;margin:8px 0}}.progress span{{display:block;width:78%;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:inherit}}
-.mobile-nav{{display:none;position:sticky;top:var(--header-h);z-index:45;padding:10px 12px;background:var(--bg);border-bottom:1px solid var(--border)}}.mobile-nav summary{{display:flex;align-items:center;justify-content:space-between;list-style:none;cursor:pointer;padding:10px 12px;border-radius:5px;border:1px solid var(--border);background:var(--panel);font-weight:700}}.mobile-nav summary::-webkit-details-marker{{display:none}}.mobile-nav[open] .chevron{{transform:rotate(180deg)}}.chevron{{transition:transform .16s ease;color:var(--muted)}}.mobile-nav-body{{margin-top:10px;max-height:68vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:14px}}
-@media(max-width:1180px){{.layout.has-sidebar{{grid-template-columns:var(--sidebar-w) minmax(0,1fr)}}.rightbar{{display:none}}.topbar{{grid-template-columns:auto minmax(120px,1fr) auto}}}}
-@media(max-width:860px){{:root{{--header-h:56px}}.adbar{{display:none}}.topbar{{grid-template-columns:auto auto;padding:0 14px}}.search{{display:none}}.brand span span{{display:none}}.top-actions .top-pill{{display:none}}.mobile-nav{{display:block}}.layout.has-sidebar{{grid-template-columns:minmax(0,1fr)}}.sidebar{{display:none}}main{{padding:18px 16px 56px;background:var(--bg)}}.content-wrap{{width:100%}}.card,.layout.no-sidebar .card{{padding:30px 24px 42px;border-radius:18px}}.card h1{{font-size:27px;line-height:1.36;margin-bottom:26px}}.doc-title-kind{{font-size:13px;margin-bottom:10px}}.doc-title-path{{font-size:23px;line-height:1.34}}.card h2{{font-size:21px;margin-top:42px;padding-left:15px}}.card h2:before{{top:14px;width:4px}}.card h3{{font-size:18px;margin-top:32px}}.card p,.card li{{font-size:15.6px;line-height:1.96}}.card>p:not(.lead-code){{text-indent:1.6em}}.card>p.lead-code{{text-indent:0;padding-left:1.6em}}.card ul,.card ol{{padding-left:1.45rem}}.card>ul,.card>ol{{padding:13px 13px 13px 1.65rem;margin:8px 0 26px}}.card li.depth-1{{margin-left:.85rem}}.card li.depth-2{{margin-left:1.7rem}}.card li.depth-3,.card li.depth-4,.card li.depth-5{{margin-left:2.55rem}}.source-form{{display:grid;border-radius:16px;padding:10px;margin:24px 0}}input{{width:100%;flex:auto;padding:12px 13px}}button{{width:100%;padding:13px 16px}}.home-title{{font-size:34px;line-height:1.16}}.home-subtitle{{font-size:15px;line-height:1.82}}.home-section-title{{font-size:23px}}.repo-grid{{grid-template-columns:1fr}}.repo-card-link{{padding:18px}}.repo-title{{font-size:24px}}.repo-subtitle{{font-size:14px}}.repo-footer{{align-items:flex-start;flex-direction:column}}.repo-hint{{max-width:100%}}pre{{border-radius:12px;padding:14px 15px}}}}
+:root{{--bg:#ffffff;--bg-soft:#fafafa;--hover:#f4f4f5;--card:#ffffff;--text:#18181b;--text-2:#3f3f46;--muted:#71717a;--muted-2:#a1a1aa;--border:#e4e4e7;--border-strong:#d4d4d8;--primary:#18181b;--primary-fg:#ffffff;--link:#2563eb;--link-hover:#1d4ed8;--code-bg:#0a0a0a;--code-border:#27272a;--code-text:#e4e4e7;--code-muted:#71717a;--blue:#3b82f6;--emerald:#10b981;--purple:#a855f7;--amber:#f59e0b;--red:#ef4444;--header-h:56px;--sidebar-w:264px;--rail-w:220px;color-scheme:light}}
+:root[data-theme='dark']{{--bg:#09090b;--bg-soft:#18181b;--hover:#27272a;--card:#0a0a0a;--text:#fafafa;--text-2:#d4d4d8;--muted:#a1a1aa;--muted-2:#71717a;--border:#27272a;--border-strong:#3f3f46;--primary:#fafafa;--primary-fg:#18181b;--link:#60a5fa;--link-hover:#93c5fd;--code-bg:#000000;--code-border:#27272a;--code-text:#e4e4e7;--code-muted:#71717a;color-scheme:dark}}
+*{{box-sizing:border-box}}html{{font-size:16px;scroll-padding-top:calc(var(--header-h) + 20px);-webkit-text-size-adjust:100%}}body{{margin:0;background:var(--bg);color:var(--text);font-family:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}}a{{color:inherit;text-decoration:none;overflow-wrap:anywhere}}a:hover{{color:var(--text)}}img{{max-width:100%}}p,li,small,summary{{overflow-wrap:anywhere;word-break:break-word}}::selection{{background:color-mix(in srgb,var(--blue) 22%,transparent)}}.muted{{color:var(--muted)!important}}small{{color:var(--muted);font-size:.8rem}}
+.header{{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:saturate(180%) blur(10px);-webkit-backdrop-filter:saturate(180%) blur(10px);border-bottom:1px solid var(--border)}}.header-in{{max-width:80rem;margin:0 auto;height:var(--header-h);display:flex;align-items:center;gap:.75rem;padding:0 1rem}}.brand{{display:flex;align-items:center;gap:.6rem;font-weight:700;font-size:1.02rem;color:var(--text);white-space:nowrap}}.brand:hover{{color:var(--text)}}.brand-mark{{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--purple));display:inline-grid;place-items:center;color:#fff;flex:0 0 auto}}.header-spacer{{flex:1 1 auto}}.icon-btn{{width:36px;height:36px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;line-height:1}}.icon-btn:hover{{color:var(--text);background:var(--hover);border-color:var(--border-strong)}}.theme-toggle .moon{{display:none}}:root[data-theme='dark'] .theme-toggle .moon{{display:inline}}:root[data-theme='dark'] .theme-toggle .sun{{display:none}}.btn-primary{{height:36px;padding:0 14px;border-radius:9px;background:var(--primary);color:var(--primary-fg);font-weight:600;font-size:.85rem;border:0;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none}}.btn-primary:hover{{opacity:.88;color:var(--primary-fg)}}
+.layout{{max-width:80rem;margin:0 auto;padding:0 1rem}}@media(min-width:640px){{.layout{{padding:0 1.5rem}}}}.doc-layout{{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);gap:2.5rem;padding:2rem 0 4rem;align-items:start}}.home-layout{{padding:0}}.main{{min-width:0}}.doc-main{{max-width:48rem;margin:0 auto}}.sidebar{{position:sticky;top:calc(var(--header-h) + 1.25rem);align-self:start;max-height:calc(100vh - var(--header-h) - 2.5rem);overflow:auto;padding:0 1rem 2rem 0;scrollbar-width:thin}}.sidebar-panel{{display:flex;flex-direction:column;gap:1rem}}.sidebar-home{{font-size:.78rem;font-weight:600;color:var(--muted);padding:2px 0}}.sidebar-home:hover{{color:var(--text)}}.sidebar-search input{{width:100%;border:1px solid var(--border);background:var(--bg-soft);border-radius:8px;padding:7px 11px;font:inherit;font-size:.8rem;color:var(--text);outline:0}}.sidebar-search input:focus{{border-color:var(--border-strong)}}.sidebar-search input::placeholder{{color:var(--muted)}}
+.progress-card{{border:1px solid var(--border);border-radius:10px;background:var(--bg-soft);padding:12px 13px}}.progress-label{{font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}}.progress-card strong{{display:block;font-size:1.1rem;margin:6px 0 4px;color:var(--text)}}.progress{{height:6px;background:var(--hover);border-radius:99px;overflow:hidden;margin:6px 0}}.progress span{{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--emerald));border-radius:inherit}}.progress-card small{{font-size:.7rem;color:var(--muted);line-height:1.55;display:block}}.repo-id{{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.7rem;color:var(--muted-2);padding:2px 0;word-break:break-all}}
+.repo-nav{{display:flex;flex-direction:column;gap:1.25rem}}.nav-section{{display:flex;flex-direction:column}}.nav-section-title{{display:flex;align-items:center;gap:7px;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;padding:0 8px}}.nav-section-title::before{{content:'';width:8px;height:8px;border-radius:50%;background:var(--dot,var(--muted-2));flex:0 0 auto}}.nav-section--blue{{--dot:var(--blue)}}.nav-section--emerald{{--dot:var(--emerald)}}.nav-section--purple{{--dot:var(--purple)}}.nav-section--amber{{--dot:var(--amber)}}.nav-section--red{{--dot:var(--red)}}.overview-link{{display:block;padding:7px 10px;border-radius:7px;font-size:.85rem;color:var(--text-2);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.overview-link:hover{{background:var(--hover);color:var(--text)}}.repo-tree{{display:flex;flex-direction:column;gap:1px}}.tree-node,.tree-leaf{{display:block;min-width:0}}.tree-node>summary,.tree-leaf{{display:flex;align-items:center;gap:5px;padding:6px 10px;border-radius:7px;font-size:.85rem;color:var(--text-2);line-height:1.4}}.tree-node>summary{{cursor:pointer;list-style:none;user-select:none}}.tree-node>summary::-webkit-details-marker{{display:none}}.tree-toggle,.tree-toggle-spacer{{flex:0 0 auto;width:16px;height:16px;padding:0;border:0;background:transparent;color:var(--muted);cursor:pointer;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:inline-flex;align-items:center;justify-content:center}}.tree-toggle-spacer{{visibility:hidden;cursor:default}}.tree-node[open] .tree-toggle{{transform:rotate(90deg)}}.tree-dir-link{{flex:1;min-width:0;color:inherit}}.tree-node>summary:hover,.tree-leaf:hover{{background:var(--hover);color:var(--text)}}.is-active{{background:var(--hover)!important;color:var(--text)!important;font-weight:600}}.tree-children{{display:flex;flex-direction:column;gap:1px;margin-left:9px;padding-left:10px;border-left:1px solid var(--border)}}.tree-label{{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.tree-missing{{opacity:.55}}
+.prose{{color:var(--text-2);font-size:16px;line-height:1.8}}.prose>*:first-child{{margin-top:0}}.prose h1{{font-size:1.875rem;font-weight:700;line-height:1.3;margin:0 0 1.5rem;color:var(--text);letter-spacing:-.01em;overflow-wrap:anywhere}}.prose h2{{font-size:1.375rem;font-weight:600;line-height:1.4;margin:2.5rem 0 1rem;color:var(--text);padding-bottom:.5rem;border-bottom:1px solid var(--border);overflow-wrap:anywhere}}.prose h3{{font-size:1.125rem;font-weight:600;line-height:1.45;margin:2rem 0 .75rem;color:var(--text);overflow-wrap:anywhere}}.prose h4,.prose h5,.prose h6{{font-size:1rem;font-weight:600;line-height:1.5;margin:1.5rem 0 .5rem;color:var(--text)}}.prose p{{margin:0 0 1.1rem}}.prose ul,.prose ol{{margin:0 0 1.1rem;padding-left:1.5rem}}.prose li{{margin:.4rem 0}}.prose li::marker{{color:var(--muted)}}.prose li.depth-1{{margin-left:1rem}}.prose li.depth-2{{margin-left:2rem}}.prose li.depth-3{{margin-left:3rem}}.prose li.depth-4,.prose li.depth-5{{margin-left:4rem}}.prose li input[type='checkbox']{{margin-right:.5rem;vertical-align:-1px}}.prose strong{{font-weight:650;color:var(--text)}}.prose a{{color:var(--link);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--link) 32%,transparent);text-underline-offset:2px}}.prose a:hover{{color:var(--link-hover)}}.prose hr{{border:0;border-top:1px solid var(--border);margin:2.5rem 0}}.prose img{{border-radius:10px;border:1px solid var(--border)}}.prose h1.doc-title{{font-size:inherit;line-height:1.25;margin-bottom:2rem}}.doc-title-kind{{display:inline-flex;align-items:center;margin:0 0 12px;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);font-size:.78rem;font-weight:600;line-height:1.4}}:root[data-theme='dark'] .doc-title-kind{{color:#93c5fd}}.doc-title-path{{display:block;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:1.6rem;font-weight:600;line-height:1.3;overflow-wrap:anywhere;word-break:break-word}}
+.prose blockquote{{margin:1.5rem 0;padding:.85rem 1.1rem;border-left:3px solid var(--blue);background:var(--bg-soft);border-radius:0 10px 10px 0;color:var(--text-2)}}.prose blockquote p{{margin:0}}.prose blockquote p+p{{margin-top:.6rem}}.prose code{{background:var(--hover);color:var(--text);padding:.15em .4em;border-radius:6px;font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;border:1px solid var(--border);overflow-wrap:anywhere;-webkit-box-decoration-break:clone;box-decoration-break:clone}}.prose pre{{background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow:auto;margin:1.25rem 0;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--text-2)}}.prose pre code{{display:block;min-width:max-content;background:none;border:0;padding:0;color:inherit;font-size:inherit;border-radius:0}}.table-wrap{{max-width:100%;overflow:auto;margin:1.5rem 0;border:1px solid var(--border);border-radius:10px}}table{{width:100%;border-collapse:collapse;background:var(--card)}}th,td{{padding:10px 13px;border-bottom:1px solid var(--border);font-size:.9rem;line-height:1.55;text-align:left;vertical-align:top}}tr:last-child td{{border-bottom:0}}th{{background:var(--bg-soft);color:var(--text);font-weight:600}}
+.code-block{{margin:1.5rem 0;border:1px solid var(--code-border);border-radius:12px;overflow:hidden;background:var(--code-bg)}}.code-head{{display:flex;align-items:center;gap:6px;padding:10px 14px;border-bottom:1px solid var(--code-border);background:rgba(255,255,255,.025)}}.dot{{width:11px;height:11px;border-radius:50%;display:inline-block;flex:0 0 auto}}.d-r{{background:#ff5f57}}.d-y{{background:#febc2e}}.d-g{{background:#28c840}}.code-name{{margin-left:8px;color:var(--code-muted);font:12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}}.code-copy{{margin-left:auto;border:0;background:transparent;color:var(--code-muted);font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;cursor:pointer;padding:5px 9px;border-radius:6px}}.code-copy:hover{{color:var(--code-text);background:rgba(255,255,255,.07)}}.code-block pre{{margin:0;background:transparent!important;border:0!important;border-radius:0!important;padding:16px;overflow:auto}}.code-block code{{display:block;min-width:max-content;background:none;border:0;padding:0;color:var(--code-text);font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;white-space:pre}}.tok-kw{{color:#c084fc}}.tok-str{{color:#86efac}}.tok-com{{color:#71717a;font-style:italic}}.tok-num{{color:#fcd34d}}.tok-fn{{color:#60a5fa}}.tok-dec{{color:#f472b6}}
+.home-wrap{{max-width:80rem;margin:0 auto;padding:3rem 0 5rem}}.home-page{{display:flex;flex-direction:column}}.home-hero{{text-align:center;padding:1.5rem 0 2rem}}.home-kicker{{margin:0 0 12px;color:var(--blue);font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}}:root[data-theme='dark'] .home-kicker{{color:#60a5fa}}.home-title{{margin:0;font-size:clamp(2.1rem,5vw,3.25rem);line-height:1.1;letter-spacing:-.03em;font-weight:800;color:var(--text)}}.home-subtitle{{max-width:42rem;margin:1.1rem auto 0;color:var(--muted);font-size:1.0625rem;line-height:1.7}}.source-form{{display:flex;gap:8px;max-width:40rem;margin:2rem auto 0;padding:7px;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.04)}}.source-form input{{flex:1 1 auto;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:12px 14px}}.source-form input::placeholder{{color:var(--muted)}}.source-form button{{flex:0 0 auto;border:0;border-radius:10px;background:var(--primary);color:var(--primary-fg);font:600 .9rem/1.4 inherit;padding:12px 18px;cursor:pointer;white-space:nowrap}}.source-form button:hover{{opacity:.88}}.home-library{{margin-top:3.5rem}}.home-section-head{{margin-bottom:1.25rem}}.home-section-kicker{{margin:0;color:var(--muted);font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}}.home-section-title{{margin:.25rem 0 0;font-size:1.5rem;font-weight:700;color:var(--text)}}.repo-list{{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:1rem;list-style:none;margin:0;padding:0}}.repo-card{{margin:0;border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden;transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease}}.repo-card:hover{{border-color:var(--border-strong);transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.07)}}.repo-card-link{{display:flex;flex-direction:column;gap:9px;padding:18px;height:100%;color:inherit}}.repo-card-top{{display:flex;align-items:center;justify-content:space-between;gap:8px}}.repo-kicker{{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:.68rem;font-weight:600;letter-spacing:.02em;background:var(--hover);color:var(--muted)}}.card-github .repo-kicker{{background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue)}}.card-gitlab .repo-kicker,.card-remote .repo-kicker{{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber)}}.card-local .repo-kicker{{background:color-mix(in srgb,var(--emerald) 12%,transparent);color:var(--emerald)}}.repo-status{{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:.68rem;font-weight:600;background:var(--hover);color:var(--muted)}}.status-completed .repo-status{{background:color-mix(in srgb,var(--emerald) 14%,transparent);color:var(--emerald)}}.status-running .repo-status{{background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue)}}.status-queued .repo-status{{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber)}}.status-failed .repo-status{{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}}.repo-title{{font-size:1.125rem;line-height:1.3;font-weight:700;color:var(--text);overflow-wrap:anywhere;word-break:break-word}}.repo-subtitle{{color:var(--text-2);font-size:.85rem;font-weight:500;line-height:1.5;overflow-wrap:anywhere;word-break:break-word}}.repo-meta{{color:var(--muted);font-size:.74rem;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.repo-footer{{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:11px;border-top:1px solid var(--border)}}.repo-open{{color:var(--text);font-size:.8rem;font-weight:600}}.repo-card:hover .repo-open{{color:var(--blue)}}.repo-idline{{color:var(--muted-2);font-size:.68rem;line-height:1.5;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere;word-break:break-all}}
+.toc-rail{{display:none}}.rail-card{{display:flex;flex-direction:column;gap:8px;position:sticky;top:calc(var(--header-h) + 1.25rem)}}.rail-label{{font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}}.page-toc{{display:flex;flex-direction:column;gap:1px}}.toc-link{{display:block;padding:5px 10px;border-radius:6px;font-size:.78rem;color:var(--muted);line-height:1.4;border-left:2px solid transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.toc-link:hover{{color:var(--text);background:var(--hover)}}.toc-lv-h2{{padding-left:22px}}.toc-lv-h3{{padding-left:34px}}@media(min-width:1280px){{.doc-layout.has-toc{{grid-template-columns:var(--sidebar-w) minmax(0,1fr) var(--rail-w);gap:2.5rem}}.toc-rail{{display:block}}}}
+.mobile-nav{{display:none;position:sticky;top:var(--header-h);z-index:30;background:var(--bg);border-bottom:1px solid var(--border);padding:10px 1rem}}.mobile-nav summary{{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer;padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card);font-weight:600;font-size:.9rem;color:var(--text)}}.mobile-nav summary::-webkit-details-marker{{display:none}}.mobile-nav .chevron{{margin-left:auto;transition:transform .15s ease;color:var(--muted)}}.mobile-nav[open] .chevron{{transform:rotate(180deg)}}.m-nav-icon{{font-size:1rem}}.mobile-nav-body{{margin-top:10px;max-height:70vh;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}}
+@media(max-width:1023px){{.doc-layout{{grid-template-columns:minmax(0,1fr);gap:0;padding:1.25rem 0 3rem}}.sidebar{{display:none}}.mobile-nav{{display:block}}.doc-main{{max-width:100%}}}}
+@media(max-width:900px){{.home-wrap{{padding:2rem 0 4rem}}.home-title{{font-size:2rem}}.home-subtitle{{font-size:1rem}}.source-form{{flex-direction:column;border-radius:14px}}.source-form button{{width:100%}}.repo-list{{grid-template-columns:1fr}}.prose h1{{font-size:1.6rem}}.prose h2{{font-size:1.2rem}}}}
 </style><script>
 (function(){{try{{var t=localStorage.getItem('repo-docs-theme')||'light';document.documentElement.dataset.theme=t;}}catch(e){{document.documentElement.dataset.theme='light';}}}})();
 function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='light'?'dark':'light';r.dataset.theme=n;try{{localStorage.setItem('repo-docs-theme',n)}}catch(e){{}}}}
+function copyCode(btn){{var pre=btn.closest('.code-block')&&btn.closest('.code-block').querySelector('pre');if(!pre)return;var txt=pre.innerText;var done=function(){{var o=btn.textContent;btn.textContent='已复制';setTimeout(function(){{btn.textContent=o}},1500)}};try{{navigator.clipboard.writeText(txt).then(done,function(){{}})}}catch(e){{}}}}
 (function(){{
-  function syncSidebarWidth(){{
-    var sidebar=document.querySelector('.sidebar');
-    if(!sidebar) return;
-    var root=document.documentElement;
-    var apply=function(){{ root.style.setProperty('--sidebar-w', sidebar.offsetWidth+'px'); try{{localStorage.setItem('repo-docs-sidebar-w', sidebar.offsetWidth)}}catch(e){{}} }};
-    var saved=null;
-    try{{saved=parseInt(localStorage.getItem('repo-docs-sidebar-w')||'',10);}}catch(e){{}}
-    if(saved && saved>240){{ sidebar.style.width=saved+'px'; root.style.setProperty('--sidebar-w', saved+'px'); }}
-    apply();
-    if('ResizeObserver' in window){{ new ResizeObserver(apply).observe(sidebar); }}
-    window.addEventListener('resize', apply);
-  }}
+  function syncSidebarWidth(){{}}
   function makeSearch(){{
     var input=document.getElementById('nav-search');
     if(!input) return;
@@ -928,7 +1039,7 @@ function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='
   function buildPageToc(){{
     var toc=document.getElementById('page-toc');
     if(!toc) return;
-    var hs=[].slice.call(document.querySelectorAll('.card h1,.card h2,.card h3'));
+    var hs=[].slice.call(document.querySelectorAll('.prose h1,.prose h2,.prose h3'));
     if(!hs.length){{ toc.innerHTML='<span class="muted">本页暂无目录</span>'; return; }}
     toc.innerHTML=hs.map(function(h,i){{
       if(!h.id) h.id='sec-'+i;
@@ -940,7 +1051,7 @@ function toggleTheme(){{var r=document.documentElement;var n=r.dataset.theme==='
   if(document.readyState==='loading'){{ document.addEventListener('DOMContentLoaded', init); }} else {{ init(); }}
 }})();
 </script></head>
-<body><div class="adbar">Repo Docs - <b>中文代码学习文档</b>：从推荐阅读顺序开始，不再硬啃源码</div><header class="topbar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span><strong>repo docs</strong><span>文档</span></span></a><div class="search"><input id="nav-search" type="search" placeholder="搜索目录 / 文件 / 函数" aria-label="搜索目录文件函数"><kbd>⌘ K</kbd></div><nav class="top-actions"><a class="top-pill primary" href="/">Ask AI</a><button class="theme-toggle" type="button" onclick="toggleTheme()" aria-label="切换暗黑/正常模式"><span class="moon">☾</span><span class="sun">☀</span></button></nav></header>{mobile_nav}<div class="{layout_class}">{aside}<main><div class="content-wrap"><article class="card">{body}</article></div></main>{rightbar}</div></body></html>""".encode()
+<body><header class="header"><div class="header-in"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 6 2 12 8 18"></polyline><polyline points="16 6 22 12 16 18"></polyline></svg></span><span class="brand-name">Repo Docs</span></a><div class="header-spacer"></div><button class="icon-btn theme-toggle" type="button" onclick="toggleTheme()" aria-label="切换深色/浅色模式"><span class="moon">☾</span><span class="sun">☀</span></button><a class="btn-primary header-cta" href="/">生成文档</a></div></header>{mobile_nav}<div class="layout"><div class="{layout_class}">{aside}{main_inner}{rightbar}</div></div></body></html>""".encode()
 
 
 OVERVIEW_DOCS = [
@@ -1087,14 +1198,14 @@ def repo_sidebar(repo_id: str, gen: Path) -> str:
         if rel not in consumed:
             label = Path(rel).stem
             orphan_items.append(f"<a class='overview-link' href='{doc_href(repo_id, rel)}' title='{html.escape(rel)}'>{html.escape(label)}</a>")
-    orphan_html = f"<section class='nav-section'><div class='nav-section-title'>其他文档</div>{''.join(orphan_items)}</section>" if orphan_items else ""
+    orphan_html = f"<section class='nav-section nav-section--amber'><div class='nav-section-title'>其他文档</div>{''.join(orphan_items)}</section>" if orphan_items else ""
 
     overview_html = "".join(overview_items) or "<p class='muted'>暂无总览文档</p>"
     return (
-        f"<p class='repo-id muted' title='{html.escape(repo_id)}'>{html.escape(repo_id)}</p>"
+        f"<p class='repo-id' title='{html.escape(repo_id)}'>{html.escape(repo_id)}</p>"
         "<nav class='repo-nav structured-nav' aria-label='文档目录'>"
-        f"<section class='nav-section'><div class='nav-section-title'>项目总览</div>{overview_html}</section>"
-        f"<section class='nav-section'><div class='nav-section-title'>源码结构</div><div class='repo-tree'>{tree_html}</div></section>"
+        f"<section class='nav-section nav-section--blue'><div class='nav-section-title'>项目总览</div>{overview_html}</section>"
+        f"<section class='nav-section nav-section--emerald'><div class='nav-section-title'>源码结构</div><div class='repo-tree'>{tree_html}</div></section>"
         f"{orphan_html}"
         "</nav>"
     )
