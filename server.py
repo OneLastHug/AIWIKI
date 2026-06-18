@@ -1216,7 +1216,6 @@ def repo_sidebar(repo_id: str, gen: Path) -> str:
 
     overview_html = "".join(overview_items) or "<p class='muted'>暂无总览文档</p>"
     return (
-        f"<p class='repo-id' title='{html.escape(repo_id)}'>{html.escape(repo_id)}</p>"
         "<nav class='repo-nav structured-nav' aria-label='文档目录'>"
         f"<section class='nav-section nav-section--blue'><div class='nav-section-title'>项目总览</div>{overview_html}</section>"
         f"<section class='nav-section nav-section--emerald'><div class='nav-section-title'>源码结构</div><div class='repo-tree'>{tree_html}</div></section>"
